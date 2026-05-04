@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "SafeShelf",
-    "description": "SafeShelf REST API. Set **baseUrl** (default ends with `/api`). For routes with path segments, set **userId**, **categoryId**, **pantryItemId**, and **alertId** from prior responses.",
+    "description": "SafeShelf REST API. Set **baseUrl** (default `http://localhost:5000/api`; production: `https://safeshelf-api.vercel.app/api`). For routes with path segments, set **userId**, **categoryId**, **pantryItemId**, and **alertId** from prior responses.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

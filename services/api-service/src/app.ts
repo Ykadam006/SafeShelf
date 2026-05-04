@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import cors from "cors";
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
 import YAML from "yamljs";
@@ -65,8 +65,21 @@ export function createApp() {
   if (openapiDocument) {
     app.use(
       "/api/docs",
+      (_req: Request, res: Response, next: NextFunction) => {
+        // Helmet's default CSP (script-src 'self') blocks the Function()
+        // calls inside swagger-ui-bundle.js, leaving the page blank. Strip
+        // CSP/COEP for the docs route only so Swagger can render.
+        res.removeHeader("Content-Security-Policy");
+        res.removeHeader("Cross-Origin-Embedder-Policy");
+        res.removeHeader("Cross-Origin-Opener-Policy");
+        res.removeHeader("Cross-Origin-Resource-Policy");
+        next();
+      },
       swaggerUi.serve,
-      swaggerUi.setup(openapiDocument, { explorer: true }),
+      swaggerUi.setup(openapiDocument, {
+        explorer: true,
+        customSiteTitle: "SafeShelf API Docs",
+      }),
     );
   }
 

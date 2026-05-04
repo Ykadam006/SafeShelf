@@ -2,7 +2,17 @@
 
 **SafeShelf** is a full-stack educational system that helps users **manage pantry inventory** while **checking U.S. FDA food-recall signals** backed by **[openFDA](https://open.fda.gov/)** Food Enforcement data. The **api-service** coordinates users, pantry items, recall checks, and alerts; the **recall-service** proxies and normalizes openFDA lookups; and the **React** dashboard presents analytics-friendly views for demos and coursework review.
 
-SafeShelf illustrates a **microservice-style separation of concerns**, a normalized **PostgreSQL** schema on **Neon** (or any Postgres-compatible host), and **production-minded** practices—API documentation, structured logging, automated tests, containerized local runs, CI/CD on GitHub Actions, and optional cloud deployment (**Render**, **Vercel**).
+SafeShelf illustrates a **microservice-style separation of concerns**, a normalized **PostgreSQL** schema on **Neon**, and **production-minded** practices—API documentation, structured logging, automated tests, containerized local runs, CI/CD on GitHub Actions, and three Vercel deployments (frontend + two serverless Express services).
+
+### Live deployments
+
+| Surface | URL |
+| --- | --- |
+| **Frontend (SPA)** | <https://safe-shelf.vercel.app> |
+| **API service** | <https://safeshelf-api.vercel.app> |
+| **Swagger docs** | <https://safeshelf-api.vercel.app/api/docs> |
+| **Recall service** | <https://safeshelf-recall.vercel.app> |
+| **Recall-service health** | <https://safeshelf-recall.vercel.app/api/health> |
 
 ---
 
@@ -365,14 +375,25 @@ Each backend has its own `package.json`, `node_modules`, and runtime config. Spl
 2. Set **`RECALL_SERVICE_URL`** on the api-service project to that URL; redeploy the api project so it reads the new env.
 3. Deploy the frontend with **`VITE_API_BASE_URL`** pointing at the api project; redeploy if you change it later.
 
-### Deployed URLs (fill after go-live — placeholders only)
+### Live deployment URLs
 
-| Surface | Production URL *(replace with yours)* |
+| Surface | Production URL |
 | --- | --- |
-| **Frontend (Vercel)** | _`https://...vercel.app`_ |
-| **API (Vercel)** | _`https://....vercel.app`_ |
-| **Swagger docs** | _`https://....vercel.app/api/docs`_ |
-| **Recall service (Vercel)** | _`https://....vercel.app/api/health`_ |
+| **Frontend (Vercel)** | <https://safe-shelf.vercel.app> |
+| **API (Vercel)** | <https://safeshelf-api.vercel.app> |
+| **Swagger docs** | <https://safeshelf-api.vercel.app/api/docs> |
+| **Recall service (Vercel)** | <https://safeshelf-recall.vercel.app/api/health> |
+
+### Required environment variables on Vercel
+
+| Project | Variable | Value |
+| --- | --- | --- |
+| **safe-shelf** (frontend) | `VITE_API_BASE_URL` | `https://safeshelf-api.vercel.app/api` |
+| **safeshelf-api** | `DATABASE_URL` | Neon **pooler** connection string |
+| **safeshelf-api** | `RECALL_SERVICE_URL` | `https://safeshelf-recall.vercel.app` |
+| **safeshelf-api** | `NODE_ENV` | `production` |
+| **safeshelf-recall** | `OPENFDA_API_KEY` | (optional) openFDA key |
+| **safeshelf-recall** | `NODE_ENV` | `production` |
 
 ---
 
@@ -380,7 +401,7 @@ Each backend has its own `package.json`, `node_modules`, and runtime config. Spl
 
 Import **`postman/SafeShelf.postman_collection.json`**. Variables:
 
-- **`baseUrl`** default `http://localhost:5000/api`
+- **`baseUrl`** — default `http://localhost:5000/api`. To hit production set it to `https://safeshelf-api.vercel.app/api`.
 - **`userId`**, **`categoryId`**, **`pantryItemId`**, **`alertId`** — hydrate from POST/GET responses before chained calls.
 
 ---
