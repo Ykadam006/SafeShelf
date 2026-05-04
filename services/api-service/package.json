@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "postinstall": "prisma generate",
     "build": "tsc -p tsconfig.build.json && mkdir -p dist/docs && cp src/docs/openapi.yaml dist/docs/openapi.yaml",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
