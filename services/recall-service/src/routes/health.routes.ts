@@ -1,0 +1,13 @@
+import { Router } from "express";
+
+import { sendSuccess } from "../utils/httpResponse";
+
+export const healthRoutes = Router();
+
+healthRoutes.get("/", (_req, res) => {
+  sendSuccess(res, 200, "Healthy.", {
+    status: "ok",
+    service: "recall-service",
+    timestamp: new Date().toISOString(),
+  });
+});

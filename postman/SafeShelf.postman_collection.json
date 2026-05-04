@@ -1,0 +1,393 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "SafeShelf",
+    "description": "SafeShelf REST API. Set **baseUrl** (default ends with `/api`). For routes with path segments, set **userId**, **categoryId**, **pantryItemId**, and **alertId** from prior responses.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api"
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "categoryId",
+      "value": ""
+    },
+    {
+      "key": "pantryItemId",
+      "value": ""
+    },
+    {
+      "key": "alertId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "POST Users",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ada Pantry\",\n  \"email\": \"ada.pantry@example.com\",\n  \"role\": \"USER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/users",
+            "description": "`role` is optional (`USER` or `ADMIN`); defaults apply when omitted."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Users list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users"
+          },
+          "response": []
+        },
+        {
+          "name": "GET User by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users/{{userId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH User by id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ada Pantry (updated)\",\n  \"email\": \"ada.updated@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/users/{{userId}}",
+            "description": "Send any subset of `name`, `email`, `role` — at least one field is required."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE User by id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/users/{{userId}}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "POST Categories",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dry goods\",\n  \"description\": \"Pasta, rice, flour, and baking staples.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/categories"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Categories list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/categories"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Pantry Items",
+      "item": [
+        {
+          "name": "POST Pantry Items",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"name\": \"Organic peanut butter 16 oz\",\n  \"brand\": \"Example Foods Co.\",\n  \"quantity\": 2,\n  \"expirationDate\": \"2026-12-31\",\n  \"purchaseDate\": \"2026-01-15\",\n  \"storageLocation\": \"Pantry shelf B\",\n  \"barcode\": \"012345678905\",\n  \"notes\": \"Unopened\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/pantry-items",
+            "description": "Replace `{{userId}}` and `{{categoryId}}` Postman variables (or paste literal UUIDs) from **Users** and **Categories** steps."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Pantry Items list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/pantry-items"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Pantry Item by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/pantry-items/{{pantryItemId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH Pantry Item by id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 5,\n  \"storageLocation\": \"Refrigerator door\",\n  \"notes\": \"Opened — use within 30 days.\",\n  \"expirationDate\": \"2026-06-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/pantry-items/{{pantryItemId}}",
+            "description": "At least one updatable field must be present."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE Pantry Item by id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/pantry-items/{{pantryItemId}}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Recalls",
+      "item": [
+        {
+          "name": "GET Recall search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recalls/search?query=peanut+butter",
+              "query": [
+                {
+                  "key": "query",
+                  "value": "peanut butter"
+                }
+              ]
+            },
+            "description": "Proxies recall-service FDA search via api-service."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Recall Checks",
+      "item": [
+        {
+          "name": "POST Pantry Item recall check",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/pantry-items/{{pantryItemId}}/check-recall"
+          },
+          "response": []
+        },
+        {
+          "name": "POST Recall check all (user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/recalls/check-all"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Pantry Item recall checks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/pantry-items/{{pantryItemId}}/recall-checks"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Alerts",
+      "item": [
+        {
+          "name": "GET Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/alerts",
+            "description": "Optional query params: `userId`, `status`, `riskLevel` (see OpenAPI)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Alert by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/alerts/{{alertId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH Alert by id",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"alertStatus\": \"REVIEWED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/alerts/{{alertId}}",
+            "description": "`alertStatus`: `NEW` | `REVIEWED` | `DISMISSED` | `RESOLVED`"
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE Alert by id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/alerts/{{alertId}}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "GET Dashboard summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/summary",
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}",
+                  "disabled": true,
+                  "description": "Optional UUID to scope rollups to one pantry owner."
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

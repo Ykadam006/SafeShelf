@@ -1,0 +1,131 @@
+// SafeShelf — pantry + FDA recall tracking (PostgreSQL / Neon)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AlertStatus {
+  NEW
+  REVIEWED
+  DISMISSED
+  RESOLVED
+}
+
+model User {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  role      UserRole  @default(USER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  pantryItems PantryItem[]
+  recallAlerts RecallAlert[]
+
+  @@map("users")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pantryItems PantryItem[]
+
+  @@map("categories")
+}
+
+model PantryItem {
+  id               String    @id @default(uuid())
+  userId           String
+  categoryId       String
+  name             String
+  brand            String?
+  quantity         Int       @default(1)
+  expirationDate   DateTime?
+  purchaseDate     DateTime?
+  storageLocation String?
+  barcode          String?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category     Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  recallChecks RecallCheck[]
+  recallAlerts RecallAlert[]
+
+  @@index([userId])
+  @@index([categoryId])
+  @@map("pantry_items")
+}
+
+model RecallCheck {
+  id                String   @id @default(uuid())
+  pantryItemId      String
+  searchQuery       String
+  matchesFound      Int      @default(0)
+  externalApiStatus String
+  checkedAt         DateTime @default(now())
+
+  pantryItem PantryItem @relation(fields: [pantryItemId], references: [id], onDelete: Cascade)
+
+  @@index([pantryItemId])
+  @@map("recall_checks")
+}
+
+model Recall {
+  id                   String   @id @default(uuid())
+  openfdaEventId       String   @unique
+  productDescription   String
+  recallingFirm        String?
+  reasonForRecall      String?
+  classification       String?
+  status               String?
+  distributionPattern  String?
+  recallInitiationDate String?
+  createdAt            DateTime @default(now())
+
+  recallAlerts RecallAlert[]
+
+  @@map("recalls")
+}
+
+model RecallAlert {
+  id           String       @id @default(uuid())
+  userId       String
+  pantryItemId String
+  recallId     String
+  riskLevel    RiskLevel
+  alertStatus  AlertStatus  @default(NEW)
+  matchScore   Float        @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pantryItem PantryItem @relation(fields: [pantryItemId], references: [id], onDelete: Cascade)
+  recall     Recall     @relation(fields: [recallId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([pantryItemId])
+  @@unique([pantryItemId, recallId], map: "recall_alerts_pantry_recall_uidx")
+  @@map("recall_alerts")
+}

@@ -1,0 +1,2032 @@
+openapi: 3.0.3
+info:
+  title: SafeShelf API
+  version: 0.1.0
+  summary: Household pantry inventory with FDA recall awareness
+  description: |
+    **SafeShelf** is a pantry and food-safety assistant: users organise **SKU-level pantry items**, assign **categories**,
+    and receive **recall alerts** when stored FDA/OpenFDA recall data matches inventory. The **`api-service`** is the SPA-facing
+    REST façade over PostgreSQL (Prisma): it persists users, taxonomy, recalls, audits (`RecallCheck`), and join-table alerts
+    (`RecallAlert`). Heavy recall search executes through a sibling **`recall-service`** proxy; **`api-service`** normalizes payloads,
+    derives **risk tiers** from FDA classification wording, and fans out alerting workflows without changing enforcement source data.
+
+    **Interactive docs** (`Swagger UI`): `GET /api/docs`
+
+    ### Response envelope — success
+    All happy-path JSON responses share:
+    `success` (literal `true`), `message`, and nullable `data` (payload object/array).
+
+    ### Response envelope — errors
+    Structured failures return HTTP status **400**, **404**, **409**, **429**, **502**, or **500** as applicable, body:
+    `success` (`false`), `message`, `errors` (array; often populated for **400** validation with `{ path, message, code }` entries).
+
+    Canonical reusable problem shapes live under **`components.responses`** (e.g., `ValidationErrorProblem`, `NotFoundProblem`, `ConflictProblem`,
+    upstream `RateLimitedProblem` / `BadGatewayUpstreamProblem`, and `InternalServerProblem`).
+
+tags:
+  - name: Health
+    description: Process liveness and dependency smoke checks
+  - name: Users
+    description: Admin / consumer account CRUD powering authentication hooks in the SPA
+  - name: Categories
+    description: |
+      SKU taxonomy rails — each Pantry Item references **`categoryId`**; counts surface how crowded a bucket is operationally.
+  - name: Pantry Items
+    description: Inventoried groceries with enrichment relations (nested user/category) plus recall orchestration attachments
+  - name: Recalls
+    description: Recall-service façade + Postgres snapshots for durable FDA rows (normalized & risk-ranked)
+  - name: Recall Checks
+    description: Persisted executions of automated FDA matching against SKU attributes (bulk + singleton entry points)
+  - name: Recall Alerts
+    description: SLA-oriented views for alerting operators about HIGH/MED/LOW SKU exposure with lifecycle states
+  - name: Dashboard
+    description: Executive rollups tying pantry scale, SKU risk posture, freshness windows (expiry horizons), OpenFDA tails, alert velocity
+
+servers:
+  - url: http://localhost:5000
+    description: |
+      Local development. Matches **`PORT`** default **5000** in `services/api-service` (`src/config/env.ts`). Substitute host/port behind a proxy; paths stay under **`/api/...`**.
+externalDocs:
+  description: Interactive OpenAPI explorer (Swagger UI)
+  url: http://localhost:5000/api/docs
+
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      summary: Liveness/readiness probe
+      description: |
+        Returns JSON envelope (**`Healthy.`**) embedding service name and RFC3339 **`timestamp`**.
+        Lightweight enough for kube **`livenessProbe`**, load-balancer pings, or local smoke tests.
+      tags: [Health]
+      responses:
+        "200":
+          description: API process is reachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalServerProblem"
+
+  /api/users:
+    get:
+      operationId: listUsers
+      summary: List all users
+      tags: [Users]
+      responses:
+        "200":
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListEnvelope"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+    post:
+      operationId: createUser
+      summary: Create a user
+      tags: [Users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEnvelope"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictErrorBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+
+  /api/users/{id}:
+    get:
+      operationId: getUserById
+      summary: Get a user by id
+      tags: [Users]
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: User retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEnvelope"
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundErrorBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+    patch:
+      operationId: patchUserById
+      summary: Update a user by id
+      tags: [Users]
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEnvelope"
+        "400":
+          description: Validation error or no fields provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundErrorBody"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictErrorBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+    delete:
+      operationId: deleteUserById
+      summary: Delete a user by id
+      tags: [Users]
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: User deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletedUserEnvelope"
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotFoundErrorBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+
+  /api/categories:
+    get:
+      operationId: listCategoriesWithCounts
+      summary: List all categories with pantry item counts
+      tags: [Categories]
+      responses:
+        "200":
+          description: Categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryListEnvelope"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+    post:
+      operationId: createCategory
+      summary: Create a category
+      tags: [Categories]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCategoryRequest"
+      responses:
+        "201":
+          description: Category created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryEnvelope"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "409":
+          description: Category name already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictErrorBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+
+  /api/categories/{id}:
+    get:
+      operationId: getCategoryById
+      summary: Get a category by id
+      tags: [Categories]
+      parameters:
+        - $ref: "#/components/parameters/CategoryId"
+      responses:
+        "200":
+          description: Category retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryEnvelope"
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryNotFoundErrorBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+    patch:
+      operationId: patchCategoryById
+      summary: Update a category by id
+      tags: [Categories]
+      parameters:
+        - $ref: "#/components/parameters/CategoryId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCategoryRequest"
+      responses:
+        "200":
+          description: Category updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryEnvelope"
+        "400":
+          description: Validation error or no fields provided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryNotFoundErrorBody"
+        "409":
+          description: Category name already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictErrorBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+    delete:
+      operationId: deleteCategoryById
+      summary: Delete a category by id
+      tags: [Categories]
+      parameters:
+        - $ref: "#/components/parameters/CategoryId"
+      responses:
+        "200":
+          description: Category deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletedCategoryEnvelope"
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryNotFoundErrorBody"
+        "409":
+          description: Category still referenced by pantry items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConflictErrorBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+
+  /api/pantry-items:
+    get:
+      operationId: listPantryItems
+      summary: Query pantry items (filters compose with AND semantics)
+      description: Filters stack with AND. Case-insensitive `search` scans name, brand, barcode, notes (OR semantics). Use `expiringSoon=true` to find items whose expiration lands within fourteen days ahead of UTC midnight today.
+      tags: [Pantry Items]
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by pantry owner user id.
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by category id.
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Substring filters across textual fields inside each row.
+        - name: expiringSoon
+          in: query
+          schema:
+            type: string
+          description: Use `true` or `1` to enable the expiring-soon rolling window described above.
+      responses:
+        "200":
+          description: Pantry items retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryItemListEnvelope"
+        "400":
+          description: Invalid query filters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+    post:
+      operationId: createPantryItem
+      summary: Create a pantry item for a validated user/category pair
+      tags: [Pantry Items]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePantryItemRequest"
+      responses:
+        "201":
+          description: Pantry item created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryItemEnvelope"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Related user/category does not exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericNotFoundBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+
+  /api/pantry-items/{id}:
+    get:
+      operationId: getPantryItemById
+      summary: Fetch a pantry item with related user/category
+      tags: [Pantry Items]
+      parameters:
+        - $ref: "#/components/parameters/PantryItemId"
+      responses:
+        "200":
+          description: Pantry item retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryItemEnvelope"
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Pantry item not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryItemNotFoundBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+    patch:
+      operationId: patchPantryItemById
+      summary: Update a pantry item
+      tags: [Pantry Items]
+      parameters:
+        - $ref: "#/components/parameters/PantryItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePantryItemRequest"
+      responses:
+        "200":
+          description: Pantry item updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryItemEnvelope"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Missing pantry row or nested user/category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericNotFoundBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+    delete:
+      operationId: deletePantryItemById
+      summary: Delete a pantry item
+      tags: [Pantry Items]
+      parameters:
+        - $ref: "#/components/parameters/PantryItemId"
+      responses:
+        "200":
+          description: Pantry item deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletedPantryItemEnvelope"
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Pantry item not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryItemNotFoundBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+
+  /api/pantry-items/{pantryItemId}/check-recall:
+    post:
+      operationId: queuePantryRecallCheck
+      summary: Check a pantry item against openFDA via recall-service
+      description: Executes `brand + name` (or just `name`) search, writes a `RecallCheck`, upserts `Recall` rows, and creates NEW `RecallAlert` rows tied to this pantry SKU.
+      tags: [Recall Checks]
+      parameters:
+        - $ref: "#/components/parameters/PantryItemIdRecall"
+      responses:
+        "200":
+          description: Check persisted (SUCCESS) or FAILURE when recall-service unreachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryRecallCheckEnvelope"
+        "400":
+          description: Invalid pantry id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Pantry row missing or nested lookups failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericNotFoundBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+
+  /api/pantry-items/{pantryItemId}/recall-checks:
+    get:
+      operationId: listRecallChecksForPantryItem
+      summary: Recall check history per pantry SKU
+      tags: [Recall Checks]
+      parameters:
+        - $ref: "#/components/parameters/PantryItemIdRecall"
+      responses:
+        "200":
+          description: Ordered newest-first RecallCheck audits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallCheckHistoryEnvelope"
+        "400":
+          description: Invalid pantry id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Pantry item not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryItemNotFoundBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+
+  /api/recalls/search:
+    get:
+      operationId: searchRecallsViaProxy
+      summary: Search recalls via recall-service proxy
+      description: |
+        Proxies to **`GET {RECALL_SERVICE_URL}/api/recalls/search`**. Normalizes each hit, derives **`riskLevel`** (LOW / MEDIUM / HIGH)
+        locally from FDA **classification** text, and may include **`upstreamMessage`** or **`info`** hints (e.g. zero-match narration after OpenFDA lookups).
+      tags: [Recalls]
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+          description: SKU / brand / product phrase echoed to recall-service verbatim (length bound matches api-service validator).
+      responses:
+        "200":
+          description: Normalized recalls + metadata assembled for the SPA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallSearchEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationErrorProblem"
+        "429":
+          $ref: "#/components/responses/RateLimitedProblem"
+        "502":
+          $ref: "#/components/responses/BadGatewayUpstreamProblem"
+        "500":
+          $ref: "#/components/responses/InternalServerProblem"
+
+  /api/recalls/{id}:
+    get:
+      operationId: getPersistedRecallByIdOrEventKey
+      summary: Fetch persisted Recall row from Postgres
+      description: |
+        Looks up **`recalls`** by internal UUID (**`recalls.id`**) OR by opaque **`openfdaEventId`** when the path literal is **not**
+        UUID-shaped. Rows are hydrated by ingestion/check workflows—not every OpenFDA transient search hit is persisted automatically.
+      tags: [Recalls]
+      parameters:
+        - $ref: "#/components/parameters/RecallLookupKey"
+      responses:
+        "200":
+          description: Stored recall plus derived **`riskLevel`**
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallStoredEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationErrorProblem"
+        "404":
+          $ref: "#/components/responses/RecallNotFoundProblem"
+        "500":
+          $ref: "#/components/responses/InternalServerProblem"
+
+  /api/recalls/check-all:
+    post:
+      operationId: runBulkRecallChecksForUser
+      summary: Sweep every pantry SKU for one user through recall-service
+      description: |
+        Body carries **`userId`**. Validates the owner exists then runs the same logic as **`POST /api/pantry-items/{pantryItemId}/check-recall`**
+        for each SKU: remote search (`brand + name` | `name`), persisted **`RecallCheck`**, **`Recall`** upserts, deduped **`RecallAlert`** creation.
+      tags: [Recall Checks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecallBulkCheckBody"
+      responses:
+        "200":
+          description: Aggregation of per-row checks/alerts emitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallBulkSummaryEnvelope"
+        "400":
+          $ref: "#/components/responses/ValidationErrorProblem"
+        "404":
+          $ref: "#/components/responses/NotFoundProblem"
+        "500":
+          $ref: "#/components/responses/InternalServerProblem"
+
+  /api/alerts:
+    get:
+      operationId: listRecallAlerts
+      summary: List recall alerts
+      description: Filter by owner user, lifecycle status, and derived risk tier. Each row nests the alerting user, SKU context, and persisted recall metadata.
+      tags: [Recall Alerts]
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Limit to alerts belonging to this user
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/RecallAlertLifecycleStatus"
+        - name: riskLevel
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/RecallRiskLevel"
+          description: Filter by inferred FDA classification tier stored on creation
+      responses:
+        "200":
+          description: Alerts ordered newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallAlertListEnvelope"
+        "400":
+          description: Invalid filter query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+
+  /api/alerts/{id}:
+    get:
+      operationId: getRecallAlertById
+      summary: Get recall alert by id
+      tags: [Recall Alerts]
+      parameters:
+        - $ref: "#/components/parameters/RecallAlertId"
+      responses:
+        "200":
+          description: Alert with pantry item, persisted recall row, and user account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallAlertEnvelope"
+        "400":
+          description: Invalid alert id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Recall alert not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallAlertNotFoundBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+    patch:
+      operationId: patchRecallAlertLifecycle
+      summary: Update recall alert lifecycle status
+      description: PATCH only adjusts `alertStatus`; linked `Recall` rows are never mutated here.
+      tags: [Recall Alerts]
+      parameters:
+        - $ref: "#/components/parameters/RecallAlertId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchRecallAlertRequest"
+      responses:
+        "200":
+          description: Updated alert projection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallAlertEnvelope"
+        "400":
+          description: Invalid id or payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Recall alert not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallAlertNotFoundBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+    delete:
+      operationId: deleteRecallAlertJoinRow
+      summary: Delete recall alert
+      description: Removes only this `RecallAlert` join row; persisted `Recall` facts remain available for auditing.
+      tags: [Recall Alerts]
+      parameters:
+        - $ref: "#/components/parameters/RecallAlertId"
+      responses:
+        "200":
+          description: Alert removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallAlertDeletedEnvelope"
+        "400":
+          description: Invalid alert id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Recall alert not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallAlertNotFoundBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+
+  /api/dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      summary: Dashboard KPIs & roll-ups
+      description: >-
+        Omit `userId` for global/admin aggregates (whole SafeShelf tenancy). Provide `userId` to constrain every rollup to one account —
+        totals, expiry windows (`expiringSoonItems` spans the next **14 UTC days** inclusive of today-start), grouped counts, recall checks tail, and **`latestAlerts`**
+        (full pantry + persisted recall payloads). **`activeAlerts`** tallies alerts with status **`NEW`** or **`REVIEWED`**.
+      tags: [Dashboard]
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: When set, restricts every KPI to pantry rows/alerts/recall checks belonging to this user (also verifies the user exists).
+      responses:
+        "200":
+          description: KPI bundle returned in one round-trip snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummaryEnvelope"
+        "400":
+          description: Invalid `userId` query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorBody"
+        "404":
+          description: Supplied user id missing from Postgres
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericNotFoundBody"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericErrorBody"
+
+components:
+  responses:
+    ValidationErrorProblem:
+      description: |
+        **HTTP 400** — malformed JSON bodies, unsupported query coercion, blank required fields,
+        UUID formatting, numeric bounds, enum drift, etc. Middleware surfaces Zod-derived detail rows under **`errors`**.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationErrorBody"
+          example:
+            success: false
+            message: "Validation failed."
+            errors:
+              - path: "email"
+                message: "Invalid email"
+                code: "invalid_string"
+
+    ConflictProblem:
+      description: |
+        **HTTP 409** — unique index collision (duplicate email/category name composites, etc.).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ConflictErrorBody"
+          example:
+            success: false
+            message: "Email already registered."
+            errors: []
+
+    NotFoundProblem:
+      description: |
+        **HTTP 404** — generic tenancy miss (referenced user/category/pantry user scope not found mid-transaction).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/GenericNotFoundBody"
+
+    PantryNotFoundProblem:
+      description: |
+        **HTTP 404** — pantry SKU row missing (or Recall Check middleware cannot resolve nested owner/category lookups).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PantryItemNotFoundBody"
+
+    UserAccountNotFoundProblem:
+      description: |
+        **HTTP 404** — **`users`** table miss for deterministic routes (GET/PATCH/DELETE user by id).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/NotFoundErrorBody"
+
+    CategoryNotFoundProblem:
+      description: |
+        **HTTP 404** — taxonomy id absent/deleted prior to guarded operations.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CategoryNotFoundErrorBody"
+
+    RecallNotFoundProblem:
+      description: |
+        **HTTP 404** — persisted Recall key was never written (search-only hits do not implicitly insert rows).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RecallNotFoundBody"
+
+    RecallAlertNotFoundProblem:
+      description: |
+        **HTTP 404** — alert join row absent (deleted or spoofed UUID).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RecallAlertNotFoundBody"
+
+    RateLimitedProblem:
+      description: |
+        **HTTP 429** — upstream OpenFDA or recall-service throttling surfaced through **`api-service`**
+        (most commonly during **`GET /api/recalls/search`** fan-out).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TooManyRequestsErrorBody"
+
+    BadGatewayUpstreamProblem:
+      description: |
+        **HTTP 502** — recall-service outage, malformed payload, timeouts, TLS issues, unexpected HTTP tiers.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/BadGatewayErrorBody"
+
+    InternalServerProblem:
+      description: |
+        **HTTP 500** — unexpected prisma/runtime exceptions. **`message`** is opaque in **`production`** to avoid leaking internals.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/GenericErrorBody"
+
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: User primary key
+
+    CategoryId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Category primary key
+
+    PantryItemId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Pantry item primary key
+
+    PantryItemIdRecall:
+      name: pantryItemId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Pantry item being checked for FDA enforcement matches
+
+    RecallAlertId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Recall alert (`recall_alerts.id`)
+
+    RecallLookupKey:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+      description: |
+        Postgres UUID (`recalls.id`) when the literal parses as RFC-4122 — otherwise resolves `openfdaEventId`/FDA **event key** lookups.
+
+  schemas:
+    UserDto:
+      type: object
+      required: [id, name, email, role, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [ADMIN, USER]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateUserRequest:
+      type: object
+      required: [name, email]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [ADMIN, USER]
+          nullable: false
+
+    UpdateUserRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [ADMIN, USER]
+
+    SuccessEnvelope:
+      type: object
+      required: [success, message, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        message:
+          type: string
+        data:
+          nullable: true
+          description: Payload for the endpoint (may be empty object).
+
+    ApiFailureEnvelope:
+      type: object
+      description: Standard API error envelope (middleware + validators).
+      required: [success, message, errors]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        message:
+          type: string
+        errors:
+          type: array
+          description: Validation path payloads or supplementary context entries.
+          items: {}
+
+    HealthEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [status, service, timestamp]
+              properties:
+                status:
+                  type: string
+                  example: ok
+                service:
+                  type: string
+                  example: api-service
+                timestamp:
+                  type: string
+                  format: date-time
+
+    UserEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/UserDto"
+
+    UserListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/UserDto"
+
+    DeletedUserEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+
+    RecallRiskLevel:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+
+    RecallNormalizedDto:
+      type: object
+      description: Shared recall shape surfaced to the SPA (risk derived locally from classification keywords).
+      required:
+        [
+          eventId,
+          productDescription,
+          recallingFirm,
+          reasonForRecall,
+          classification,
+          status,
+          distributionPattern,
+          recallInitiationDate,
+          riskLevel,
+        ]
+      properties:
+        eventId:
+          type: string
+        productDescription:
+          type: string
+          nullable: true
+        recallingFirm:
+          type: string
+          nullable: true
+        reasonForRecall:
+          type: string
+          nullable: true
+        classification:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        distributionPattern:
+          type: string
+          nullable: true
+        recallInitiationDate:
+          type: string
+          nullable: true
+        riskLevel:
+          $ref: "#/components/schemas/RecallRiskLevel"
+
+    RecallSearchEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                [source, query, count, recalls]
+              properties:
+                source:
+                  type: string
+                  enum: [recall-service]
+                query:
+                  type: string
+                count:
+                  type: integer
+                recalls:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RecallNormalizedDto"
+                upstreamMessage:
+                  type: string
+                  nullable: true
+                info:
+                  type: string
+                  nullable: true
+                  description: Optional narration from recall-service (mirrors supplemental zero-match notices).
+
+    RecallStoredEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: "#/components/schemas/RecallNormalizedDto"
+                - type: object
+                  required: [source, id, createdAt]
+                  properties:
+                    source:
+                      type: string
+                      enum: [database]
+                    id:
+                      type: string
+                      format: uuid
+                    createdAt:
+                      type: string
+                      format: date-time
+
+    RecallNotFoundBody:
+      description: Persisted FDA recall UUID could not be located.
+      allOf:
+        - $ref: "#/components/schemas/ApiFailureEnvelope"
+
+    BadGatewayErrorBody:
+      description: Upstream/recall-microservice outages surface as HTTP 502.
+      allOf:
+        - $ref: "#/components/schemas/ApiFailureEnvelope"
+
+    TooManyRequestsErrorBody:
+      description: Upstream/OpenFDA rate limiting reflected to clients as HTTP 429.
+      allOf:
+        - $ref: "#/components/schemas/ApiFailureEnvelope"
+
+    RecallCheckDto:
+      type: object
+      description: Persisted pantry recall check ledger entry.
+      required:
+        [
+          id,
+          pantryItemId,
+          searchQuery,
+          matchesFound,
+          externalApiStatus,
+          checkedAt,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        pantryItemId:
+          type: string
+          format: uuid
+        searchQuery:
+          type: string
+        matchesFound:
+          type: integer
+          minimum: 0
+        externalApiStatus:
+          type: string
+          enum: [SUCCESS, FAILED]
+        checkedAt:
+          type: string
+          format: date-time
+
+    PantryRecallCheckData:
+      type: object
+      required:
+        [
+          pantryItem,
+          recallCheck,
+          matchesFound,
+          alertsCreated,
+          recallResults,
+        ]
+      properties:
+        pantryItem:
+          $ref: "#/components/schemas/PantryItemDto"
+        recallCheck:
+          $ref: "#/components/schemas/RecallCheckDto"
+        matchesFound:
+          type: integer
+          minimum: 0
+        alertsCreated:
+          type: integer
+          minimum: 0
+        recallResults:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecallNormalizedDto"
+
+    PantryRecallCheckEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PantryRecallCheckData"
+
+    RecallCheckHistoryEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/RecallCheckDto"
+
+    RecallBulkCheckBody:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: string
+          format: uuid
+
+    RecallBulkSummaryData:
+      type: object
+      required:
+        [totalItemsChecked, totalMatchesFound, totalAlertsCreated]
+      properties:
+        totalItemsChecked:
+          type: integer
+          minimum: 0
+        totalMatchesFound:
+          type: integer
+          minimum: 0
+        totalAlertsCreated:
+          type: integer
+          minimum: 0
+
+    RecallBulkSummaryEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/RecallBulkSummaryData"
+
+    RecallAlertLifecycleStatus:
+      type: string
+      enum: [NEW, REVIEWED, DISMISSED, RESOLVED]
+
+    RecallPersistedRowDto:
+      type: object
+      description: Canonical recall row mirrored from FDA enforcement payloads (persisted locally).
+      required:
+        [
+          id,
+          openfdaEventId,
+          productDescription,
+          recallingFirm,
+          reasonForRecall,
+          classification,
+          status,
+          distributionPattern,
+          recallInitiationDate,
+          createdAt,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        openfdaEventId:
+          type: string
+        productDescription:
+          type: string
+        recallingFirm:
+          type: string
+          nullable: true
+        reasonForRecall:
+          type: string
+          nullable: true
+        classification:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        distributionPattern:
+          type: string
+          nullable: true
+        recallInitiationDate:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    RecallAlertDto:
+      type: object
+      required:
+        [
+          id,
+          userId,
+          pantryItemId,
+          recallId,
+          riskLevel,
+          alertStatus,
+          matchScore,
+          createdAt,
+          updatedAt,
+          user,
+          pantryItem,
+          recall,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        pantryItemId:
+          type: string
+          format: uuid
+        recallId:
+          type: string
+          format: uuid
+        riskLevel:
+          $ref: "#/components/schemas/RecallRiskLevel"
+        alertStatus:
+          $ref: "#/components/schemas/RecallAlertLifecycleStatus"
+        matchScore:
+          type: number
+          format: float
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        user:
+          $ref: "#/components/schemas/UserDto"
+        pantryItem:
+          $ref: "#/components/schemas/PantryItemDto"
+        recall:
+          $ref: "#/components/schemas/RecallPersistedRowDto"
+
+    RecallAlertEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/RecallAlertDto"
+
+    RecallAlertListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/RecallAlertDto"
+
+    PatchRecallAlertRequest:
+      type: object
+      required: [alertStatus]
+      properties:
+        alertStatus:
+          $ref: "#/components/schemas/RecallAlertLifecycleStatus"
+
+    RecallAlertDeletedEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+
+    RecallAlertNotFoundBody:
+      description: Target recall-alert row absent (may have been deleted).
+      allOf:
+        - $ref: "#/components/schemas/ApiFailureEnvelope"
+
+    DashboardPantrySnippetDto:
+      type: object
+      required: [id, name, brand]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        brand:
+          type: string
+          nullable: true
+
+    DashboardRecentRecallCheckDto:
+      type: object
+      required:
+        [
+          id,
+          pantryItemId,
+          searchQuery,
+          matchesFound,
+          externalApiStatus,
+          checkedAt,
+          pantryItem,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        pantryItemId:
+          type: string
+          format: uuid
+        searchQuery:
+          type: string
+        matchesFound:
+          type: integer
+          minimum: 0
+        externalApiStatus:
+          type: string
+          enum: [SUCCESS, FAILED]
+        checkedAt:
+          type: string
+          format: date-time
+        pantryItem:
+          $ref: "#/components/schemas/DashboardPantrySnippetDto"
+
+    DashboardCategoryBreakdownEntry:
+      type: object
+      required: [categoryId, categoryName, itemCount]
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        itemCount:
+          type: integer
+          minimum: 0
+
+    DashboardRiskBreakdownEntry:
+      type: object
+      required: [riskLevel, count]
+      properties:
+        riskLevel:
+          $ref: "#/components/schemas/RecallRiskLevel"
+        count:
+          type: integer
+          minimum: 0
+
+    DashboardSummaryDto:
+      type: object
+      required:
+        [
+          totalPantryItems,
+          totalCategories,
+          totalRecallAlerts,
+          activeAlerts,
+          highRiskAlerts,
+          expiringSoonItems,
+          recentRecallChecks,
+          itemsByCategory,
+          alertsByRiskLevel,
+          latestAlerts,
+        ]
+      properties:
+        totalPantryItems:
+          type: integer
+          minimum: 0
+          description: Count of pantry rows in scope (`userId`-scoped rows or tenancy-wide totals).
+        totalCategories:
+          type: integer
+          minimum: 0
+          description: >-
+            When `userId` is omitted, counts every taxonomy row (`categories`).
+            Otherwise counts categories that surface at least once in this user's pantry.
+        totalRecallAlerts:
+          type: integer
+          minimum: 0
+        activeAlerts:
+          type: integer
+          minimum: 0
+          description: Recall alerts labeled `NEW` or `REVIEWED`.
+        highRiskAlerts:
+          type: integer
+          minimum: 0
+          description: Alerts whose stored risk tier resolves to **`HIGH`** (FDA Class I shorthand).
+        expiringSoonItems:
+          type: integer
+          minimum: 0
+          description: Pantry SKUs carrying a non-null expiration between today (UTC midnight) and +14 UTC days inclusive.
+        recentRecallChecks:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardRecentRecallCheckDto"
+          description: >-
+            Reverse-chronologic tail (max 15) of `RecallCheck` rows respecting the same tenancy vs user filter.
+            Each row nests a lightweight SKU stub for SPA drill-down UX.
+        itemsByCategory:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardCategoryBreakdownEntry"
+          description: Prisma `groupBy` rollup of SKU counts keyed by taxonomy id/name.
+        alertsByRiskLevel:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardRiskBreakdownEntry"
+          description: Prisma `groupBy` on `RecallAlert.riskLevel` with deterministic zero placeholders for tiers missing alerts.
+        latestAlerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecallAlertDto"
+          description: Reverse-chronologic tail (max 10) modeled identically to the Recall Alerts SPA GET payload incl. nested SKU + persisted recall blobs.
+
+    DashboardSummaryEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/DashboardSummaryDto"
+
+    CategoryDto:
+      type: object
+      required:
+        [
+          id,
+          name,
+          description,
+          pantryItemCount,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        pantryItemCount:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+
+    UpdateCategoryRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+
+    CategoryEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/CategoryDto"
+
+    CategoryListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/CategoryDto"
+
+    DeletedCategoryEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+
+    PantryUserSummaryDto:
+      type: object
+      required: [id, name, email, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [ADMIN, USER]
+
+    PantryCategorySummaryDto:
+      type: object
+      required: [id, name, description]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    PantryItemDto:
+      type: object
+      required:
+        [
+          id,
+          userId,
+          categoryId,
+          name,
+          brand,
+          quantity,
+          expirationDate,
+          purchaseDate,
+          storageLocation,
+          barcode,
+          notes,
+          createdAt,
+          updatedAt,
+          user,
+          category,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        brand:
+          type: string
+          nullable: true
+        quantity:
+          type: integer
+          minimum: 1
+        expirationDate:
+          type: string
+          format: date-time
+          nullable: true
+        purchaseDate:
+          type: string
+          format: date-time
+          nullable: true
+        storageLocation:
+          type: string
+          nullable: true
+        barcode:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        user:
+          $ref: "#/components/schemas/PantryUserSummaryDto"
+        category:
+          $ref: "#/components/schemas/PantryCategorySummaryDto"
+
+    CreatePantryItemRequest:
+      type: object
+      required: [userId, categoryId, name]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        brand:
+          type: string
+          maxLength: 160
+          nullable: true
+        quantity:
+          type: integer
+          minimum: 1
+        expirationDate:
+          type: string
+          format: date-time
+          nullable: true
+        purchaseDate:
+          type: string
+          format: date-time
+          nullable: true
+        storageLocation:
+          type: string
+          maxLength: 200
+          nullable: true
+        barcode:
+          type: string
+          maxLength: 128
+          nullable: true
+        notes:
+          type: string
+          maxLength: 2000
+          nullable: true
+
+    UpdatePantryItemRequest:
+      type: object
+      description: Requires at least one property to be present (`null` counts for nullable fields).
+      minProperties: 1
+      properties:
+        userId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        brand:
+          type: string
+          maxLength: 160
+          nullable: true
+        quantity:
+          type: integer
+          minimum: 1
+        expirationDate:
+          type: string
+          format: date-time
+          nullable: true
+        purchaseDate:
+          type: string
+          format: date-time
+          nullable: true
+        storageLocation:
+          type: string
+          maxLength: 200
+          nullable: true
+        barcode:
+          type: string
+          maxLength: 128
+          nullable: true
+        notes:
+          type: string
+          maxLength: 2000
+          nullable: true
+
+    PantryItemEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PantryItemDto"
+
+    PantryItemListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/PantryItemDto"
+
+    DeletedPantryItemEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+
+    PantryItemNotFoundBody:
+      description: SKU row missing OR nested relation failed lookups.
+      allOf:
+        - $ref: "#/components/schemas/ApiFailureEnvelope"
+
+    GenericNotFoundBody:
+      description: Generic tenant resource missing (`userId`, taxonomy, pantry row, dashboard user, …).
+      allOf:
+        - $ref: "#/components/schemas/ApiFailureEnvelope"
+
+    CategoryNotFoundErrorBody:
+      description: taxonomy id absent or deleted.
+      allOf:
+        - $ref: "#/components/schemas/ApiFailureEnvelope"
+
+    ValidationErrorBody:
+      description: Query/body/params rejected by validators (typically Zod-derived `errors` payloads).
+      allOf:
+        - $ref: "#/components/schemas/ApiFailureEnvelope"
+
+    NotFoundErrorBody:
+      description: User/account level not-found responses.
+      allOf:
+        - $ref: "#/components/schemas/ApiFailureEnvelope"
+
+    ConflictErrorBody:
+      description: Unique constraint clashes (duplicate email/category name, composite keys, …).
+      allOf:
+        - $ref: "#/components/schemas/ApiFailureEnvelope"
+
+    GenericErrorBody:
+      description: Unexpected server faults (opaque copy in production).
+      allOf:
+        - $ref: "#/components/schemas/ApiFailureEnvelope"

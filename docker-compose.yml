@@ -1,0 +1,82 @@
+# SafeShelf — API, recall microservice, and local PostgreSQL for containerized development.
+#
+# ---------------------------------------------------------------------------
+# Neon (or any external Postgres) instead of the bundled `postgres` service
+# ---------------------------------------------------------------------------
+# 1. Replace `DATABASE_URL` on `api-service` with your Neon URL, e.g.:
+#      postgresql://USER:PASSWORD@ep-xxxxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+# 2. Remove or relax `depends_on: postgres` below (and you can delete the
+#    `postgres` service entirely if you don't need a local DB).
+# 3. Keep `RECALL_SERVICE_URL` as `http://recall-service:5001` unless recall
+#    is also hosted elsewhere.
+# ---------------------------------------------------------------------------
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: safeshelf
+    volumes:
+      - safeshelf_pgdata:/var/lib/postgresql/data
+    # Map a host port to Postgres for local tools (Prisma CLI, GUIs).
+    # Default 55432 avoids clashing with a Postgres already listening on :5432.
+    ports:
+      - "${POSTGRES_HOST_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d safeshelf"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  recall-service:
+    build:
+      context: ./services/recall-service
+      dockerfile: Dockerfile
+    ports:
+      - "${RECALL_SERVICE_HOST_PORT:-5001}:5001"
+    environment:
+      NODE_ENV: ${RECALL_NODE_ENV:-production}
+      PORT: "5001"
+      OPENFDA_API_KEY: ${OPENFDA_API_KEY:-}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:5001/api/health >/dev/null || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  api-service:
+    build:
+      context: ./services/api-service
+      dockerfile: Dockerfile
+    ports:
+      - "${API_SERVICE_HOST_PORT:-5000}:5000"
+    environment:
+      NODE_ENV: ${API_NODE_ENV:-production}
+      PORT: "5000"
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/safeshelf?schema=public
+      RECALL_SERVICE_URL: http://recall-service:5001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      recall-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:5000/api/health >/dev/null || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  safeshelf_pgdata:

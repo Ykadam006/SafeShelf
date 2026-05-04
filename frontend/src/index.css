@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth antialiased;
+  }
+  body {
+    @apply font-sans text-slate-800 bg-slate-50;
+  }
+}
+
+@layer components {
+  .ss-card {
+    @apply rounded-xl border border-slate-200/90 bg-white shadow-shelf;
+  }
+  .ss-card-header {
+    @apply border-b border-slate-100 px-5 py-4;
+  }
+  .ss-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+  }
+  .ss-btn-primary {
+    @apply ss-btn bg-emerald-600 text-white shadow-sm hover:bg-emerald-700;
+  }
+  .ss-btn-secondary {
+    @apply ss-btn border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50;
+  }
+  .ss-btn-quiet {
+    @apply ss-btn border border-transparent text-slate-600 hover:bg-slate-100;
+  }
+  .ss-table-shell {
+    @apply ss-card overflow-hidden;
+  }
+  .ss-table {
+    @apply min-w-full divide-y divide-slate-100 text-sm;
+  }
+  .ss-table thead tr {
+    @apply bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500;
+  }
+  .ss-table th {
+    @apply px-4 py-3;
+  }
+  .ss-table td {
+    @apply px-4 py-3 align-top text-slate-800;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin-subtle::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin-subtle::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-300/70;
+  }
+}
