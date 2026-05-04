@@ -19,14 +19,12 @@ export function Layout() {
         menuOpen={menuOpen}
         onMenuToggle={() => setMenuOpen((prev) => !prev)}
       />
-      <div className="flex items-stretch pt-[4.875rem]">
-        <Sidebar open={menuOpen} onNavigate={() => setMenuOpen(false)} />
-        <main className="min-h-[calc(100vh-4.875rem)] flex-1 bg-gradient-to-br from-slate-50 via-white to-emerald-50/35 px-4 py-8 md:px-8 lg:px-12">
-          <div className="mx-auto max-w-[100rem]">
-            <Outlet />
-          </div>
-        </main>
-      </div>
+      <Sidebar open={menuOpen} onNavigate={() => setMenuOpen(false)} />
+      <main className="min-h-[calc(100vh-4.875rem)] bg-gradient-to-br from-slate-50 via-white to-emerald-50/35 px-4 pb-8 pt-[5.875rem] md:pl-[18rem] md:pr-8 lg:pl-[19rem] lg:pr-12">
+        <div className="mx-auto max-w-[100rem]">
+          <Outlet />
+        </div>
+      </main>
     </div>
   );
 }

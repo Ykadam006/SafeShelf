@@ -30,7 +30,7 @@ export function Sidebar({
     <>
       <aside
         className={[
-          "scrollbar-thin-subtle fixed inset-y-0 left-0 z-40 w-[17rem] shrink-0 overflow-y-auto border-r border-slate-800 bg-slate-900 pt-[4.875rem] text-slate-300 shadow-[4px_0_24px_rgba(15,23,42,0.12)] transition-transform md:static md:z-30 md:min-h-[calc(100vh-4.875rem)] md:bg-slate-900 md:pt-0 md:shadow-none",
+          "scrollbar-thin-subtle fixed inset-y-0 left-0 z-40 w-[17rem] shrink-0 overflow-y-auto border-r border-slate-800 bg-slate-900 pt-[4.875rem] text-slate-300 shadow-[4px_0_24px_rgba(15,23,42,0.12)] transition-transform md:z-30 md:shadow-none",
           open ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         ].join(" ")}
       >

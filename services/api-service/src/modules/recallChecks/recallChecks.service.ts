@@ -22,11 +22,17 @@ export function buildPantryRecallSearchPhrase(item: {
   brand: string | null;
 }): string {
   const n = item.name.trim();
-  const b = item.brand?.trim();
-  if (b && b.length > 0) {
-    return `${b} ${n}`.trim();
-  }
-  return n;
+  const b = item.brand?.trim() ?? "";
+  if (b.length === 0) return n;
+
+  const nLower = n.toLowerCase();
+  const bLower = b.toLowerCase();
+
+  if (nLower === bLower) return n;
+  if (nLower.includes(bLower)) return n;
+  if (bLower.includes(nLower)) return b;
+
+  return `${b} ${n}`.trim();
 }
 
 function mapRecallToUpsert(
