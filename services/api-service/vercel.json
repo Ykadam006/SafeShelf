@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "buildCommand": "echo 'serverless: skipping tsc build (Vercel compiles api/ at deploy time)'",
+  "outputDirectory": "public",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "src/docs/**"
+    }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
+}

@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 import cors from "cors";
@@ -19,8 +20,30 @@ import { recallsRouter } from "./modules/recalls/recalls.routes";
 import { usersRouter } from "./modules/users/users.routes";
 import { healthRoutes } from "./routes/health.routes";
 
-const openapiPath = path.join(__dirname, "docs/openapi.yaml");
-const openapiDocument = YAML.load(openapiPath);
+/**
+ * Resolve the OpenAPI spec across runtimes:
+ *  - local dev / tests run TS directly → `src/docs/openapi.yaml`
+ *  - production build (`npm run build`) → `dist/docs/openapi.yaml`
+ *  - serverless bundles (Vercel) → file shipped via `includeFiles`, found relative to cwd
+ */
+function loadOpenapiDocument(): unknown | null {
+  const candidates = [
+    path.join(__dirname, "docs/openapi.yaml"),
+    path.join(__dirname, "../docs/openapi.yaml"),
+    path.join(process.cwd(), "src/docs/openapi.yaml"),
+    path.join(process.cwd(), "dist/docs/openapi.yaml"),
+    path.join(process.cwd(), "services/api-service/src/docs/openapi.yaml"),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return YAML.load(candidate);
+    }
+  }
+  return null;
+}
+
+const openapiDocument = loadOpenapiDocument();
 
 export function createApp() {
   const app = express();
@@ -38,11 +61,14 @@ export function createApp() {
   app.use("/api/alerts", alertsRouter);
   app.use("/api", recallChecksRouter);
   app.use("/api/recalls", recallsRouter);
-  app.use(
-    "/api/docs",
-    swaggerUi.serve,
-    swaggerUi.setup(openapiDocument, { explorer: true }),
-  );
+
+  if (openapiDocument) {
+    app.use(
+      "/api/docs",
+      swaggerUi.serve,
+      swaggerUi.setup(openapiDocument, { explorer: true }),
+    );
+  }
 
   app.use(notFound);
   app.use(errorHandler);

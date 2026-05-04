@@ -1,0 +1,6 @@
+{
+  "version": 2,
+  "buildCommand": "echo 'serverless: skipping tsc build (Vercel compiles api/ at deploy time)'",
+  "outputDirectory": "public",
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
+}

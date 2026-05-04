@@ -279,90 +279,100 @@ This gives graders a reproducible signal: **typed builds pass**, and **contracts
 
 ---
 
-## Deployment
+## Deployment (Vercel + Neon)
 
-These notes are intentionally **deployment-ready**: no real secrets belong in git—only in host dashboards (**Render**, **Vercel**, **Neon**).
+SafeShelf ships with **Vercel adapters** (`api/index.ts` + `vercel.json`) for both Express services, so the entire stack runs on **Vercel** with **Neon** as the database. No real secrets belong in git—configure them in the Vercel dashboard.
 
 ### Neon (PostgreSQL)
 
-1. Create a **Neon** project and branch (default `main` is fine).
-2. Copy **`DATABASE_URL`** from the Neon console (SSL-compatible connection string).
-3. Add **`DATABASE_URL`** to **api-service** environment variables (**Render**, etc.).
-4. **Apply schema locally** against Neon whenever you iterate on `schema.prisma` (CI/CD or local shell):
+1. Create a **Neon** project; copy the connection string (use the **pooler** variant: `…-pooler.<region>.neon.tech/...?sslmode=require`).
+2. Locally, sync the schema once:
 
    ```bash
    cd services/api-service
    export DATABASE_URL="postgresql://...@...neon.tech/..."
    npx prisma generate
-   npx prisma db push
-   # OR: npx prisma migrate deploy    (once migrations are committed)
+   npx prisma db push        # initial schema
+   npm run prisma:seed       # optional starter data
    ```
 
-### Render · **api-service** (recommended settings)
+   For migration history later, switch to **`npx prisma migrate deploy`**.
 
-| Field | Value |
-| --- | --- |
-| Root directory | `services/api-service` |
-| Build command | `npm install && npm run build && npx prisma generate` |
-| Start command | `npm start` |
+### Vercel projects (one repo → three projects)
 
-**Environment variables (example names only)**
+Create three separate Vercel projects from the same GitHub repository. Each uses a different **Root Directory**.
 
-| Variable | Example / note |
-| --- | --- |
-| `DATABASE_URL` | Neon connection string (**secret**) |
-| `RECALL_SERVICE_URL` | Public origin of recall-service (**`https://<your-recall-host>`**) with **no trailing slash** preferred (api strips `/` if present). Recall routes are appended as **`/api/...`** from code. Update this after deploying recall-service. |
-| `NODE_ENV` | **`production`** |
-| `PORT` | **`5000`** *(on Render/Vercel-style hosts use the platform‑assigned **`PORT`** if required and align `ENV`/`start` configuration)* |
+#### 1. `safeshelf-recall` (deploy first — its URL is needed by api)
 
-**Health / docs:** Swagger will be **`https://<your-api-host>/api/docs`** assuming the Express app exposes the same paths as locally.
-
-### Render · **recall-service**
-
-| Field | Value |
+| Setting | Value |
 | --- | --- |
 | Root directory | `services/recall-service` |
-| Build command | `npm install && npm run build` |
-| Start command | `npm start` |
+| Framework preset | **Other** (auto-detects `vercel.json`) |
+| Build command | *(default)* |
+| Install command | *(default)* |
 
 **Environment variables**
 
 | Variable | Note |
 | --- | --- |
-| `OPENFDA_API_KEY` | Optional; omit or leave empty for anonymous quotas |
-| `NODE_ENV` | **`production`** |
-| `PORT` | **`5001`** *(if platform injects **`PORT`**, match your runtime config)* |
+| `OPENFDA_API_KEY` | Optional; omit for anonymous openFDA quotas |
+| `NODE_ENV` | `production` |
 
-**Health probe URL pattern:** **`https://<your-recall-service-host>/api/health`**.
+Health probe after deploy: `https://<recall>.vercel.app/api/health`.
 
-### Vercel · **frontend**
+#### 2. `safeshelf-api`
+
+| Setting | Value |
+| --- | --- |
+| Root directory | `services/api-service` |
+| Framework preset | **Other** |
+| Build command | *(default — `postinstall` runs `prisma generate`)* |
+
+**Environment variables**
+
+| Variable | Note |
+| --- | --- |
+| `DATABASE_URL` | Neon **pooler** connection string |
+| `RECALL_SERVICE_URL` | `https://<recall>.vercel.app` (origin only — code appends `/api/...`) |
+| `NODE_ENV` | `production` |
+
+Health: `https://<api>.vercel.app/api/health` · Swagger: `https://<api>.vercel.app/api/docs`.
+
+#### 3. `safeshelf-web` (frontend SPA)
 
 | Setting | Value |
 | --- | --- |
 | Root directory | `frontend` |
+| Framework preset | **Vite** *(auto-detected)* |
 | Build command | `npm run build` |
 | Output directory | `dist` |
 
 **Environment variable**
 
 ```env
-VITE_API_BASE_URL=https://YOUR-API-SERVICE-URL/api
+VITE_API_BASE_URL=https://<api>.vercel.app/api
 ```
 
-Replace **`YOUR-API-SERVICE-URL`** with the public hostname of Render’s **api-service** (no `.env` value should be pasted into the README).
+(Note the **`https://`** prefix and the **`/api`** suffix.) Redeploy the frontend after changing it — Vite bakes env vars at build time.
 
-### Important: wiring services after deploy
+### Why three projects, not one?
 
-Once **recall-service** has a stable public HTTPS origin, set **api-service** **`RECALL_SERVICE_URL`** on Render to **`https://<your-recall-service-host>`** (origin only—the API appends paths such as **`/api/recalls/search`**). Restart **api-service** so recall checks/search use the cloud recall layer instead of **`localhost`**.
+Each backend has its own `package.json`, `node_modules`, and runtime config. Splitting them keeps **install caches**, **cold starts**, and **failure domains** isolated, and matches the local microservice topology.
+
+### Wiring & ordering
+
+1. Deploy **recall-service** first; copy its URL.
+2. Set **`RECALL_SERVICE_URL`** on the api-service project to that URL; redeploy the api project so it reads the new env.
+3. Deploy the frontend with **`VITE_API_BASE_URL`** pointing at the api project; redeploy if you change it later.
 
 ### Deployed URLs (fill after go-live — placeholders only)
 
 | Surface | Production URL *(replace with yours)* |
 | --- | --- |
-| **Frontend (Vercel)** | _`https://...`_ |
-| **API (Render)** | _`https://...`_ |
-| **Swagger docs** | _`https://.../api/docs`_ |
-| **Recall service health** | _`https://.../api/health`_ |
+| **Frontend (Vercel)** | _`https://...vercel.app`_ |
+| **API (Vercel)** | _`https://....vercel.app`_ |
+| **Swagger docs** | _`https://....vercel.app/api/docs`_ |
+| **Recall service (Vercel)** | _`https://....vercel.app/api/health`_ |
 
 ---
 
