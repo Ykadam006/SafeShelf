@@ -4,7 +4,7 @@
   "outputDirectory": "public",
   "functions": {
     "api/index.ts": {
-      "includeFiles": "src/docs/**"
+      "includeFiles": "{src/docs,node_modules/swagger-ui-dist}/**"
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
