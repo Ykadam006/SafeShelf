@@ -43,12 +43,15 @@ tags:
     description: Executive rollups tying pantry scale, SKU risk posture, freshness windows (expiry horizons), OpenFDA tails, alert velocity
 
 servers:
+  - url: https://safeshelf-api.vercel.app
+    description: |
+      Production deployment on Vercel. The SPA at <https://safe-shelf.vercel.app> targets this host through `VITE_API_BASE_URL=https://safeshelf-api.vercel.app/api`.
   - url: http://localhost:5000
     description: |
       Local development. Matches **`PORT`** default **5000** in `services/api-service` (`src/config/env.ts`). Substitute host/port behind a proxy; paths stay under **`/api/...`**.
 externalDocs:
   description: Interactive OpenAPI explorer (Swagger UI)
-  url: http://localhost:5000/api/docs
+  url: https://safeshelf-api.vercel.app/api/docs
 
 paths:
   /api/health:
