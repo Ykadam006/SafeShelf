@@ -6,21 +6,26 @@ import { createApp } from "../app";
 import { prisma } from "../config/prisma";
 import * as recallsSvc from "../modules/recalls/recalls.service";
 
+// End-to-end integration tests: real Express app + real Prisma + real Postgres.
+// The only thing mocked is the recall-service HTTP call (no live openFDA traffic).
 describe("SafeShelf REST integration", () => {
   const app = createApp();
 
+  // Per-run identifiers so concurrent CI runs don't collide on unique fields.
   const runId = randomUUID().slice(0, 8);
   const email = `it-user-${runId}@safeshelf.test`;
   let userId = "";
   let categoryId = "";
   let pantryItemId = "";
 
+  // Always clean up the test user (cascade removes pantry items + alerts).
   afterAll(async () => {
     if (userId) {
       await prisma.user.deleteMany({ where: { id: userId } });
     }
   });
 
+  // User CRUD basics.
   describe("Users", () => {
     it("POST /api/users creates a user", async () => {
       const res = await request(app)
@@ -64,6 +69,7 @@ describe("SafeShelf REST integration", () => {
     });
   });
 
+  // Category CRUD with the per-category pantry-count aggregate.
   describe("Categories", () => {
     const categoryName = `IT-Cat-${runId}`;
 
@@ -91,6 +97,7 @@ describe("SafeShelf REST integration", () => {
     });
   });
 
+  // Pantry-item CRUD plus the userId filter on the list endpoint.
   describe("Pantry items", () => {
     it("POST /api/pantry-items creates a SKU", async () => {
       expect(userId && categoryId).toBeTruthy();
@@ -144,6 +151,7 @@ describe("SafeShelf REST integration", () => {
     });
   });
 
+  // Dashboard rollup contract — just keys + types.
   describe("Dashboard", () => {
     it("GET /api/dashboard/summary returns expected rollup keys scoped to user", async () => {
       const res = await request(app)
@@ -173,12 +181,13 @@ describe("SafeShelf REST integration", () => {
     });
   });
 
+  // The full recall-check pipeline with recall-service stubbed at module level.
   describe("Recall check (mocked recall-service)", () => {
     const eventKey = `OPENFDA-${runId}`;
-    /** Captured pantry id for DB cleanup (`pantryItemId` is cleared by the SKU delete step). */
     let recallPantryId = "";
 
     beforeAll(() => {
+      // Capture the pantry id now in case later tests delete it.
       recallPantryId = pantryItemId;
       jest
         .spyOn(recallsSvc, "invokeRecallMicroserviceSearch")
@@ -200,6 +209,7 @@ describe("SafeShelf REST integration", () => {
         }));
     });
 
+    // Restore the mock and tear down recall-related rows for this run.
     afterAll(async () => {
       jest.restoreAllMocks();
       if (recallPantryId) {
@@ -227,6 +237,7 @@ describe("SafeShelf REST integration", () => {
       });
       expect(res.body.data.alertsCreated).toBeGreaterThanOrEqual(1);
 
+      // Verify the audit row was actually persisted.
       const checks = await prisma.recallCheck.findMany({
         where: { pantryItemId: pantryItemId },
         orderBy: { checkedAt: "desc" },
@@ -235,11 +246,13 @@ describe("SafeShelf REST integration", () => {
       expect(checks.length).toBe(1);
       expect(checks[0].externalApiStatus).toBe("SUCCESS");
 
+      // Verify the recall snapshot was upserted.
       const recall = await prisma.recall.findUnique({
         where: { openfdaEventId: eventKey },
       });
       expect(recall).not.toBeNull();
 
+      // Verify the join-table alert was created.
       const alerts = await prisma.recallAlert.findMany({
         where: { pantryItemId: pantryItemId, recallId: recall!.id },
       });
@@ -253,6 +266,7 @@ describe("SafeShelf REST integration", () => {
     });
   });
 
+  // Tear-down in dependency order: category → user.
   describe("Categories cleanup & user removal", () => {
     it("DELETE /api/categories/:id drops the taxonomy bucket", async () => {
       await request(app).delete(`/api/categories/${categoryId}`).expect(200);

@@ -1,19 +1,17 @@
-/**
- * Approximate FDA enforcement risk tiers for coursework UI.
- *
- * Classification strings from openFDA/free text are loosely matched because
- * external data is not standardized (spelling, prefixes, casing).
- */
-
+// Risk tier shown in UI badges (red / amber / green).
 export type RecallRiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
-/** Map FDA-ish class tiers to UX risk badges. Defaults to MEDIUM when unknown. */
+// Map FDA classification text to a risk tier.
+//   Class I   → HIGH   (immediate health hazard)
+//   Class II  → MEDIUM (temporary or reversible)
+//   Class III → LOW    (unlikely to cause harm)
+//   Anything else / missing → MEDIUM as a safe default.
+// Note: order matters because "Class III" contains the substring "Class I".
 export function calculateRiskLevel(
   classification: string | null | undefined,
 ): RecallRiskLevel {
   const text = classification?.trim() ?? "";
 
-  // Order matters: Class III contains "III" avoiding overlap with II / I prefixes.
   if (/\bclass\s+iii\b/i.test(text)) return "LOW";
   if (/\bclass\s+ii\b/i.test(text)) return "MEDIUM";
   if (/\bclass\s+i\b/i.test(text)) return "HIGH";

@@ -9,6 +9,7 @@ import {
   updatePantryItemSchema,
 } from "./pantryItems.validation";
 
+// Pantry-item CRUD plus filtered listing (userId, categoryId, search, expiringSoon).
 export const pantryItemsRouter = Router();
 
 pantryItemsRouter.post(

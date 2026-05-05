@@ -1,27 +1,27 @@
-/** Shared shapes aligned with SafeShelf api-service envelopes & DTOs. */
+// Shared types mirroring the api-service envelopes and DTOs.
 
+// Standard error envelope shape.
 export interface ApiFailureEnvelope {
   success: false;
   message: string;
   errors: unknown[];
 }
 
+// Standard success envelope shape.
 export interface ApiSuccessEnvelope<T> {
   success: true;
   message?: string;
   data: T;
 }
 
-
 export type Id = string;
 
+// Enums shared with the backend.
 export type UserRole = "ADMIN" | "USER";
-
 export type AlertStatus = "NEW" | "REVIEWED" | "DISMISSED" | "RESOLVED";
-
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
-/** Normalized upstream / derived risk tier on recalls (api-service RecallRiskLevel). */
+// Risk tier used on derived recall results from /api/recalls/search.
 export type RecallRiskLevel =
   | "LOW"
   | "MEDIUM"
@@ -29,6 +29,7 @@ export type RecallRiskLevel =
   | "UNKNOWN"
   | "UNMAPPED_CLASS";
 
+// Public user shape.
 export interface UserDto {
   id: string;
   name: string;
@@ -38,6 +39,7 @@ export interface UserDto {
   updatedAt: string;
 }
 
+// Public category shape including pantry-item count.
 export interface CategoryDto {
   id: string;
   name: string;
@@ -47,6 +49,7 @@ export interface CategoryDto {
   updatedAt: string;
 }
 
+// Slim user/category nested inside pantry-item responses.
 export interface PantryItemNestedUser {
   id: string;
   name: string;
@@ -60,6 +63,7 @@ export interface PantryItemNestedCategory {
   description: string | null;
 }
 
+// Public pantry-item shape.
 export interface PantryItemDto {
   id: string;
   userId: string;
@@ -78,6 +82,7 @@ export interface PantryItemDto {
   category: PantryItemNestedCategory;
 }
 
+// Tile types returned by /api/dashboard/summary.
 export interface DashboardRecentRecallCheck {
   id: string;
   pantryItemId: string;
@@ -107,6 +112,7 @@ export interface DashboardSummary {
   latestAlerts: RecallAlertDto[];
 }
 
+// Persisted FDA recall snapshot returned from the API.
 export interface RecallSummaryDto {
   id: string;
   openfdaEventId: string;
@@ -120,6 +126,7 @@ export interface RecallSummaryDto {
   createdAt: string;
 }
 
+// Recall alert with all of its joined relations.
 export interface RecallAlertDto {
   id: string;
   userId: string;
@@ -138,6 +145,7 @@ export interface RecallAlertDto {
   recall: RecallSummaryDto;
 }
 
+// Single row in /api/recalls/search results.
 export interface RecallSearchResultRow {
   eventId: string;
   productDescription: string | null;
@@ -150,6 +158,7 @@ export interface RecallSearchResultRow {
   riskLevel: RecallRiskLevel;
 }
 
+// Top-level payload shape from /api/recalls/search.
 export interface RecallSearchPayload {
   source: "recall-service";
   query: string;

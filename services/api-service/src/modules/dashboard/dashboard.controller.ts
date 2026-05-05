@@ -4,6 +4,7 @@ import { sendSuccess } from "../../utils/httpResponse";
 import { formatRecallAlert } from "../alerts/alerts.controller";
 import * as dashboardService from "./dashboard.service";
 
+// GET /api/dashboard/summary — assembles all KPI tiles for the SPA dashboard.
 export async function getDashboardSummary(
   req: Request,
   res: Response,

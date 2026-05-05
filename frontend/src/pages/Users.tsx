@@ -10,6 +10,7 @@ import { useScopeUser } from "../context/ScopeUserContext";
 import type { UserDto, UserRole } from "../types";
 import { formatDateShort } from "../utils/display";
 
+// User CRUD: inline create form on top, sortable directory below.
 export function Users() {
   const { refreshUsers } = useScopeUser();
   const [rows, setRows] = useState<UserDto[]>([]);
@@ -18,10 +19,12 @@ export function Users() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
+  // Create-form state.
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>("USER");
 
+  // Fetch the directory.
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -40,6 +43,7 @@ export function Users() {
     void reload();
   }, [reload]);
 
+  // POST a new user; refresh the global user list so the navbar picker updates too.
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!name.trim() || !email.trim()) return;
@@ -63,6 +67,7 @@ export function Users() {
     }
   }
 
+  // DELETE with extra confirmation for the seeded demo user.
   async function destroy(id: string) {
     const target = rows.find((u) => u.id === id);
     if (
@@ -116,6 +121,7 @@ export function Users() {
         </div>
       ) : null}
 
+      {/* Create form. */}
       <form
         className="ss-card grid gap-4 p-5 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end"
         onSubmit={(event) => void submit(event)}
@@ -167,6 +173,7 @@ export function Users() {
         </button>
       </form>
 
+      {/* Directory table. */}
       {loading && rows.length === 0 ? (
         <Loading label="Loading directory…" />
       ) : rows.length === 0 ? (
@@ -196,6 +203,7 @@ export function Users() {
                     </td>
                     <td className="text-sm text-slate-600">{user.email}</td>
                     <td>
+                      {/* ADMIN gets a green pill, USER gets a neutral one. */}
                       <span
                         className={
                           user.role === "ADMIN"

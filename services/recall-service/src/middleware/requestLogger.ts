@@ -4,12 +4,13 @@ import morgan from "morgan";
 
 import { logger } from "../utils/logger";
 
+// Skip noisy probes (root + health) so logs stay focused on real traffic.
 function shouldSkipLogging(req: IncomingMessage): boolean {
   const raw = typeof req.url === "string" ? req.url.split("?", 1)[0] ?? "" : "";
   return raw === "/" || raw === "/api/health" || raw === "/api/health/";
 }
 
-/** Access logs (Morgan → Winston); health probes skipped. */
+// HTTP access logger: Morgan formats the line, Winston handles delivery.
 export const requestLogger = morgan(
   ":remote-addr :method :url HTTP/:http-version :status :res[content-length] - :response-time ms",
   {

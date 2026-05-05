@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 import { ApiError } from "../../utils/ApiError";
 
+// Always include the count of pantry items in this category for the UI.
 const categoryCountInclude = {
   _count: {
     select: { pantryItems: true },
@@ -13,6 +14,7 @@ export type CategoryWithCount = Prisma.CategoryGetPayload<{
   include: typeof categoryCountInclude;
 }>;
 
+// Prisma error code helpers.
 function isUniqueViolation(err: unknown): boolean {
   return (
     err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002"
@@ -31,6 +33,7 @@ function isForeignKeyViolation(err: unknown): boolean {
   );
 }
 
+// Create a new category; name is unique so duplicates surface as 409.
 export async function createCategory(payload: {
   name: string;
   description?: string | null;
@@ -53,6 +56,7 @@ export async function createCategory(payload: {
   }
 }
 
+// All categories alphabetised (stable sort for the UI).
 export async function listCategories(): Promise<CategoryWithCount[]> {
   return prisma.category.findMany({
     orderBy: { name: "asc" },
@@ -73,6 +77,7 @@ export async function getCategoryById(id: string): Promise<CategoryWithCount> {
   return category;
 }
 
+// Partial update; respects unique-name constraint.
 export async function updateCategory(
   id: string,
   payload: { name?: string; description?: string | null },
@@ -99,6 +104,7 @@ export async function updateCategory(
   }
 }
 
+// Block deletion if pantry items still reference this category (Restrict in schema).
 export async function deleteCategory(id: string): Promise<void> {
   try {
     await prisma.category.delete({ where: { id } });

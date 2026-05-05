@@ -1,10 +1,12 @@
 import { z } from "zod";
 
+// Body for creating a category.
 export const createCategorySchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   description: z.string().max(2000).nullable().optional(),
 });
 
+// PATCH allows partial fields but at least one must be provided.
 export const updateCategorySchema = z
   .object({
     name: z.string().trim().min(1, "Name cannot be empty").max(120).optional(),

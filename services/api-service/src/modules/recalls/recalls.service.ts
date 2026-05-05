@@ -8,6 +8,7 @@ import { ApiError } from "../../utils/ApiError";
 import type { RecallRiskLevel } from "./recallRisk";
 import { calculateRiskLevel } from "./recallRisk";
 
+// Shape returned by recall-service for each FDA hit.
 export interface RecallMicroserviceRow {
   eventId: string;
   productDescription: string | null;
@@ -19,32 +20,34 @@ export interface RecallMicroserviceRow {
   recallInitiationDate: string | null;
 }
 
+// Top-level shape of a recall-service /search response.
 interface UpstreamSearchResponse {
   ok?: boolean;
   query?: string;
   count?: number;
   recalls?: RecallMicroserviceRow[];
   message?: string;
-  /** Supplemental narration from recall-service `data.info` when present. */
   info?: string;
 }
 
-/** API-normalized recall for our frontend (risk derived from upstream classification). */
+// What we hand back to the frontend (recall + UI risk tier).
 export interface RecallResultDto extends RecallMicroserviceRow {
   riskLevel: RecallRiskLevel;
 }
 
-/** Normalized persisted recall (+ internal id when stored in Postgres). */
+// Adds DB metadata when the recall came from the local snapshot.
 export interface StoredRecallResultDto extends RecallResultDto {
   source: "database";
   id: string;
   createdAt: Date;
 }
 
+// Strip trailing slashes so we can append `/api/recalls/search` cleanly.
 function recallServiceBase(): string {
   return env.RECALL_SERVICE_URL.replace(/\/+$/, "");
 }
 
+// Decorate an upstream row with our derived risk level for the UI.
 export function normalizeUpstreamRecall(hit: RecallMicroserviceRow): RecallResultDto {
   return {
     ...hit,
@@ -52,7 +55,7 @@ export function normalizeUpstreamRecall(hit: RecallMicroserviceRow): RecallResul
   };
 }
 
-/** Supports legacy flat payloads and `{ success, message, data }` responses from recall-service. */
+// recall-service evolved between flat and enveloped responses; handle both.
 function parseRecallMicroserviceSearchPayload(
   data: unknown,
   fallbackQuery: string,
@@ -62,6 +65,7 @@ function parseRecallMicroserviceSearchPayload(
   }
   const o = data as Record<string, unknown>;
 
+  // New shape: `{ success, message, data: { recalls, ... } }`.
   if (o.success === true) {
     const inner = o.data;
     if (typeof inner !== "object" || inner === null || Array.isArray(inner)) {
@@ -89,6 +93,7 @@ function parseRecallMicroserviceSearchPayload(
     };
   }
 
+  // Legacy flat shape: `{ ok, query, count, recalls }`.
   if (!Array.isArray(o.recalls)) {
     throw ApiError.badGateway(
       "Recall search payload did not include a recalls array.",
@@ -105,6 +110,7 @@ function parseRecallMicroserviceSearchPayload(
   };
 }
 
+// Make the actual HTTP call to recall-service and translate failures into ApiErrors.
 export async function invokeRecallMicroserviceSearch(
   query: string,
 ): Promise<UpstreamSearchResponse> {
@@ -177,6 +183,7 @@ export async function invokeRecallMicroserviceSearch(
   }
 }
 
+// Public helper: run a recall-service search and decorate every row with riskLevel.
 export async function proxyRecallSearch(productQuery: string): Promise<{
   source: "recall-service";
   query: string;
@@ -214,7 +221,7 @@ export async function proxyRecallSearch(productQuery: string): Promise<{
   };
 }
 
-/** Database lookup by internal UUID primary key OR FDA `openfdaEventId`. */
+// Look up a stored recall by either internal UUID or FDA `openfdaEventId`.
 export async function loadStoredRecall(
   lookup: string,
 ): Promise<StoredRecallResultDto | null> {

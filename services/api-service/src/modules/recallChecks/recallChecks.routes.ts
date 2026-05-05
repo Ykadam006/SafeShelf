@@ -7,7 +7,10 @@ import {
 import * as ctrl from "./recallChecks.controller";
 import { recallCheckAllBodySchema } from "./recallChecks.validation";
 
-/** Mounted at `/api` so paths compose to `/api/pantry-items/:id/...`. */
+// Recall-check endpoints. Mounted at /api so paths read like
+//   POST /api/pantry-items/:id/check-recall
+//   GET  /api/pantry-items/:id/recall-checks
+//   POST /api/recalls/check-all
 export const recallChecksRouter = Router();
 
 recallChecksRouter.post(

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
+// Dashed placeholder card shown when a list/table has no data yet.
 export function EmptyState({
   icon: Icon,
   title,

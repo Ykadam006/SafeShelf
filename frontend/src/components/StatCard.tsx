@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 
+// KPI tile used on the dashboard: label, big number, optional hint and icon.
 export function StatCard({
   label,
   value,

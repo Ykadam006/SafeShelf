@@ -7,6 +7,7 @@ type RequestSchemas = {
   params?: ZodTypeAny;
 };
 
+// Validate any of body/query/params with Zod and forward failures to the error handler.
 export function validateRequest(schemas: RequestSchemas) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     try {

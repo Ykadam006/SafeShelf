@@ -6,6 +6,7 @@ import { prisma } from "../../config/prisma";
 import { ApiError } from "../../utils/ApiError";
 import type { CreateUserInput, UpdateUserInput } from "./users.validation";
 
+// Helpers for translating Prisma error codes into named ApiErrors.
 function isUniqueViolation(err: unknown): boolean {
   return (
     err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002"
@@ -18,6 +19,7 @@ function isRecordNotFound(err: unknown): boolean {
   );
 }
 
+// Insert a new user; defaults role to USER if the client didn't provide one.
 export async function createUser(payload: CreateUserInput): Promise<User> {
   const { role, ...rest } = payload;
 
@@ -36,12 +38,14 @@ export async function createUser(payload: CreateUserInput): Promise<User> {
   }
 }
 
+// All users, newest first.
 export async function listUsers(): Promise<User[]> {
   return prisma.user.findMany({
     orderBy: { createdAt: "desc" },
   });
 }
 
+// Single user lookup; 404 if missing.
 export async function getUserById(id: string): Promise<User> {
   const user = await prisma.user.findUnique({
     where: { id },
@@ -54,6 +58,7 @@ export async function getUserById(id: string): Promise<User> {
   return user;
 }
 
+// Partial update with conflict + not-found mapping.
 export async function updateUser(
   id: string,
   payload: UpdateUserInput,
@@ -78,6 +83,7 @@ export async function updateUser(
   }
 }
 
+// Cascades to pantry items and recall alerts via Prisma onDelete: Cascade.
 export async function deleteUser(id: string): Promise<void> {
   try {
     await prisma.user.delete({

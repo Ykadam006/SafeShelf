@@ -1,19 +1,21 @@
 import type { Response } from "express";
 import type { ZodError } from "zod";
 
+// Shape every successful JSON response shares.
 export type ApiSuccessEnvelope<T = unknown> = {
   success: true;
   message: string;
   data: T;
 };
 
+// Shape every error JSON response shares.
 export type ApiFailureEnvelope = {
   success: false;
   message: string;
   errors: unknown[];
 };
 
-/** Map Zod issues into a predictable list consumed by SPA clients / logs. */
+// Convert Zod issues into a stable list the SPA can render field-by-field.
 export function zodIssuesToErrors(err: ZodError): unknown[] {
   return err.issues.map((issue) => ({
     path: issue.path.length ? issue.path.join(".") : "_root",
@@ -22,7 +24,7 @@ export function zodIssuesToErrors(err: ZodError): unknown[] {
   }));
 }
 
-/** Standard `{ success: true, message, data }` JSON response. */
+// Send a `{ success: true, message, data }` JSON envelope.
 export function sendSuccess(
   res: Response,
   status: number,
@@ -36,7 +38,7 @@ export function sendSuccess(
   });
 }
 
-/** Standard `{ success: false, message, errors }` JSON response. */
+// Send a `{ success: false, message, errors }` JSON envelope.
 export function sendFailure(
   res: Response,
   status: number,

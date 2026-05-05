@@ -8,6 +8,7 @@ import type {
   UpdatePantryItemInput,
 } from "./pantryItems.validation";
 
+// Map a pantry item (with user + category) to the public response shape.
 export function formatPantryItem(row: PantryItemWithRelations) {
   return {
     id: row.id,
@@ -28,6 +29,7 @@ export function formatPantryItem(row: PantryItemWithRelations) {
   };
 }
 
+// POST /api/pantry-items
 export async function createPantryItem(
   req: Request,
   res: Response,
@@ -46,6 +48,7 @@ export async function createPantryItem(
   }
 }
 
+// GET /api/pantry-items (filters in query string)
 export async function listPantryItems(
   req: Request,
   res: Response,
@@ -65,6 +68,7 @@ export async function listPantryItems(
   }
 }
 
+// GET /api/pantry-items/:id
 export async function getPantryItemById(
   req: Request,
   res: Response,
@@ -83,6 +87,7 @@ export async function getPantryItemById(
   }
 }
 
+// PATCH /api/pantry-items/:id
 export async function patchPantryItemById(
   req: Request,
   res: Response,
@@ -102,6 +107,7 @@ export async function patchPantryItemById(
   }
 }
 
+// DELETE /api/pantry-items/:id (cascades to recall checks + alerts).
 export async function deletePantryItemById(
   req: Request,
   res: Response,

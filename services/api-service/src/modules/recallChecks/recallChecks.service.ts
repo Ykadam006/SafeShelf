@@ -12,11 +12,14 @@ import {
 } from "../recalls/recalls.service";
 import type { RecallMicroserviceRow, RecallResultDto } from "../recalls/recalls.service";
 
+// Stored on every RecallCheck row to record whether the upstream call worked.
 export const EXTERNAL_STATUS = {
   SUCCESS: "SUCCESS",
   FAILED: "FAILED",
 } as const;
 
+// Build the phrase sent to openFDA from a pantry item's name + brand.
+// Avoids "Jif Jif" style duplicates that produce zero-match queries.
 export function buildPantryRecallSearchPhrase(item: {
   name: string;
   brand: string | null;
@@ -35,6 +38,7 @@ export function buildPantryRecallSearchPhrase(item: {
   return `${b} ${n}`.trim();
 }
 
+// Translate an openFDA hit into the columns we persist on the `recalls` table.
 function mapRecallToUpsert(
   hit: RecallMicroserviceRow & { eventKey: string },
 ) {
@@ -64,12 +68,16 @@ export type PantryRecallCheckOutcome = {
   recallResults: RecallResultDto[];
 };
 
+// Run one pantry item against openFDA via recall-service.
+// Side effects: writes a RecallCheck audit row, upserts each FDA recall,
+// and creates a RecallAlert for any new (pantryItem, recall) pair.
 export async function runPantryRecallCheck(
   pantryItemId: string,
 ): Promise<PantryRecallCheckOutcome> {
   const pantryItem = await getPantryItemById(pantryItemId);
   const searchQuery = buildPantryRecallSearchPhrase(pantryItem);
 
+  // Try the upstream call; null result means the recall service failed.
   let upstream:
     | Awaited<ReturnType<typeof invokeRecallMicroserviceSearch>>
     | null = null;
@@ -80,6 +88,7 @@ export async function runPantryRecallCheck(
     upstream = null;
   }
 
+  // Failure path: still record the attempt so the user sees the audit trail.
   if (upstream === null) {
     const check = await prisma.recallCheck.create({
       data: {
@@ -102,6 +111,8 @@ export async function runPantryRecallCheck(
   const matchesFound =
     typeof upstream.count === "number" ? upstream.count : recallsRaw.length;
 
+  // Success path: persist audit + recalls + alerts inside one transaction so
+  // a partial failure can never leave orphaned records.
   return prisma.$transaction(async (tx) => {
     const check = await tx.recallCheck.create({
       data: {
@@ -132,6 +143,7 @@ export async function runPantryRecallCheck(
         eventKey,
       });
 
+      // Upsert keeps the recalls table in sync with the latest openFDA snapshot.
       const recallRecord = await tx.recall.upsert({
         where: { openfdaEventId: eventKey },
         create: upsertPayload,
@@ -148,6 +160,7 @@ export async function runPantryRecallCheck(
 
       const risk = calculateRiskLevel(recallRecord.classification) as RiskLevel;
 
+      // Skip if we've already alerted on this pair (DB has a unique index too).
       const existingAlert = await tx.recallAlert.findFirst({
         where: {
           pantryItemId,
@@ -180,6 +193,7 @@ export async function runPantryRecallCheck(
   });
 }
 
+// Audit log for a single pantry item: every check that ever ran against it.
 export async function listRecallChecksForPantryItem(
   pantryItemId: string,
 ): Promise<RecallCheck[]> {
@@ -204,6 +218,7 @@ export type BulkRecallCheckSummary = {
   totalAlertsCreated: number;
 };
 
+// Sweep every pantry item belonging to a user; aggregates per-item outcomes.
 export async function runBulkRecallChecksForUser(
   userId: string,
 ): Promise<BulkRecallCheckSummary> {

@@ -1,5 +1,6 @@
-/** Consistent badge styles for dashboards & tables */
+// Tailwind classes for risk and alert-status pills used across the app.
 
+// Red / amber / green pill matching FDA risk tier.
 export function riskBadgeClass(level: string): string {
   const key = level?.toUpperCase() ?? "";
   if (key === "HIGH") {
@@ -14,6 +15,7 @@ export function riskBadgeClass(level: string): string {
   return "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-500/15";
 }
 
+// Pill for alert lifecycle: NEW → REVIEWED → DISMISSED / RESOLVED.
 export function alertStatusBadgeClass(status: string): string {
   const key = status?.toUpperCase() ?? "";
   if (key === "NEW") {

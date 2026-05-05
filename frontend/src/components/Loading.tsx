@@ -1,3 +1,4 @@
+// Spinner with a screen-reader-friendly label, used while data is fetching.
 export function Loading({ label = "Loading…" }: { label?: string }) {
   return (
     <div

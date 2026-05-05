@@ -5,6 +5,7 @@ import type { CategoryWithCount } from "./categories.service";
 import * as categoriesService from "./categories.service";
 import type { UpdateCategoryInput } from "./categories.validation";
 
+// Map Prisma row + `_count` aggregate to the public API shape.
 export function formatCategory(row: CategoryWithCount) {
   return {
     id: row.id,
@@ -16,6 +17,7 @@ export function formatCategory(row: CategoryWithCount) {
   };
 }
 
+// POST /api/categories
 export async function createCategory(
   req: Request,
   res: Response,
@@ -34,6 +36,7 @@ export async function createCategory(
   }
 }
 
+// GET /api/categories
 export async function listCategories(
   _req: Request,
   res: Response,
@@ -52,6 +55,7 @@ export async function listCategories(
   }
 }
 
+// GET /api/categories/:id
 export async function getCategoryById(
   req: Request,
   res: Response,
@@ -70,6 +74,7 @@ export async function getCategoryById(
   }
 }
 
+// PATCH /api/categories/:id
 export async function patchCategoryById(
   req: Request,
   res: Response,
@@ -89,6 +94,7 @@ export async function patchCategoryById(
   }
 }
 
+// DELETE /api/categories/:id (refuses if pantry items still reference it).
 export async function deleteCategoryById(
   req: Request,
   res: Response,

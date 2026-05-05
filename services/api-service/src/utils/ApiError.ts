@@ -1,10 +1,8 @@
-/**
- * Operational errors with HTTP status codes (used by middleware and controllers).
- */
+// Typed error class so controllers can throw HTTP-shaped failures and the
+// central error handler can format them consistently.
 export class ApiError extends Error {
   statusCode: number;
   expose: boolean;
-  /** Optional structured auxiliary issues surfaced to clients alongside `message`. */
   errors: unknown[];
 
   constructor(
@@ -40,7 +38,7 @@ export class ApiError extends Error {
     return new ApiError(429, message, true, errors);
   }
 
-  /** Internal faults that should resolve to opaque HTTP 500 (hidden in production). */
+  // Hidden in production responses; details only show up in logs.
   static internal(message = "Internal server error"): ApiError {
     return new ApiError(500, message, false);
   }

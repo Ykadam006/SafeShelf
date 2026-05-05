@@ -7,6 +7,7 @@ import {
   recallSearchQuerySchema,
 } from "./recalls.validation";
 
+// Recall search proxy + lookup of persisted FDA snapshots.
 export const recallsRouter = Router();
 
 recallsRouter.get(

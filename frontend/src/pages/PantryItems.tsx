@@ -10,12 +10,14 @@ import { useScopeUser } from "../context/ScopeUserContext";
 import type { PantryItemDto } from "../types";
 import { formatDateDay } from "../utils/display";
 
+// Toast-like inline banner shown after recall checks succeed/fail.
 type CheckSnack = {
   id: string;
   message: string;
   variant: "success" | "error";
 };
 
+// Pantry-items table with per-row "Check recall" and "Delete" actions.
 export function PantryItems() {
   const { scopeUserId, loadingUsers, users } = useScopeUser();
   const [items, setItems] = useState<PantryItemDto[]>([]);
@@ -24,6 +26,7 @@ export function PantryItems() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [snacks, setSnacks] = useState<CheckSnack[]>([]);
 
+  // Snack helpers.
   const dismissSnack = useCallback((id: string) => {
     setSnacks((prev) => prev.filter((s) => s.id !== id));
   }, []);
@@ -34,6 +37,7 @@ export function PantryItems() {
     window.setTimeout(() => dismissSnack(id), 9500);
   }, [dismissSnack]);
 
+  // Load all pantry items for the current scope user.
   const loadItems = useCallback(async () => {
     if (!scopeUserId) return;
     setLoading(true);
@@ -51,10 +55,12 @@ export function PantryItems() {
     }
   }, [scopeUserId]);
 
+  // Reload when the user changes.
   useEffect(() => {
     if (!loadingUsers && scopeUserId) void loadItems();
   }, [loadItems, loadingUsers, scopeUserId]);
 
+  // Confirmed delete; cascades to recall checks and alerts on the server.
   async function deleteItem(id: string) {
     if (!window.confirm("Delete this pantry item?")) return;
     try {
@@ -68,6 +74,7 @@ export function PantryItems() {
     }
   }
 
+  // Trigger the per-item recall check and surface the result inline.
   async function checkRecall(id: string) {
     try {
       setBusyId(id);
@@ -95,6 +102,7 @@ export function PantryItems() {
     return <Loading label="Connecting to pantry…" />;
   }
 
+  // Guide the user toward seeding when nothing exists yet.
   if (!loadingUsers && users.length === 0) {
     return (
       <div className="mx-auto max-w-3xl py-12">
@@ -130,6 +138,7 @@ export function PantryItems() {
         }
       />
 
+      {/* Toast stack for the recall-check results. */}
       {snacks.length > 0 ? (
         <div className="space-y-3">
           {snacks.map((s) => (

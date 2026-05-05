@@ -4,6 +4,7 @@ import { sendSuccess } from "../../utils/httpResponse";
 import type { UpdateUserInput } from "./users.validation";
 import * as usersService from "./users.service";
 
+// Trim a Prisma user record down to the public response shape.
 export function formatUser(record: {
   id: string;
   name: string;
@@ -22,6 +23,7 @@ export function formatUser(record: {
   };
 }
 
+// POST /api/users
 export async function createUser(
   req: Request,
   res: Response,
@@ -35,6 +37,7 @@ export async function createUser(
   }
 }
 
+// GET /api/users
 export async function listUsers(
   _req: Request,
   res: Response,
@@ -53,6 +56,7 @@ export async function listUsers(
   }
 }
 
+// GET /api/users/:id
 export async function getUserById(
   req: Request,
   res: Response,
@@ -66,6 +70,7 @@ export async function getUserById(
   }
 }
 
+// PATCH /api/users/:id
 export async function patchUserById(
   req: Request,
   res: Response,
@@ -80,6 +85,7 @@ export async function patchUserById(
   }
 }
 
+// DELETE /api/users/:id
 export async function deleteUserById(
   req: Request,
   res: Response,

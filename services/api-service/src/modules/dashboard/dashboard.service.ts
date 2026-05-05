@@ -7,11 +7,11 @@ import {
   type RecallAlertWithRelations,
 } from "../alerts/alerts.service";
 
-/** Recent recall checks surfaced on the dashboard. */
+// Hard caps on the per-tile lists so a busy account doesn't bloat the response.
 const RECENT_RECALL_CHECKS = 15;
-/** Alerts shown in dashboard “latest”. */
 const LATEST_ALERTS_LIMIT = 10;
 
+// UTC helpers used to compute the "expiring within 14 days" window.
 function startOfUtcDay(d: Date): Date {
   return new Date(
     Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
@@ -22,7 +22,7 @@ function addUtcMilliseconds(d: Date, ms: number): Date {
   return new Date(d.getTime() + ms);
 }
 
-/** Expiration in the next 14 UTC days inclusive of today-start. */
+// WHERE clause for items expiring within the next 14 days, optionally per user.
 function expiringSoonWhereScoped(
   userId: string | undefined,
 ): Prisma.PantryItemWhereInput {
@@ -38,6 +38,7 @@ function expiringSoonWhereScoped(
   return userId ? { AND: [exp, { userId }] } : exp;
 }
 
+// Type definitions for the dashboard payload.
 export type PantryItemSnippet = {
   id: string;
   name: string;
@@ -78,6 +79,7 @@ export type DashboardSummary = {
   latestAlerts: RecallAlertWithRelations[];
 };
 
+// Count categories either globally or only those used by a specific user's pantry.
 async function categoriesCountScoped(
   tx: Omit<
     Prisma.TransactionClient,
@@ -98,6 +100,7 @@ async function categoriesCountScoped(
   });
 }
 
+// Decorate `groupBy(categoryId)` results with the matching category name.
 function mapGroupedCategories(
   grouped: Array<{ categoryId: string; _count: { _all: number } }>,
   cats: Array<{ id: string; name: string }>,
@@ -110,7 +113,8 @@ function mapGroupedCategories(
   }));
 }
 
-/** Load dashboard KPIs scoped to `userId` or across all users when omitted. */
+// Build the dashboard payload in a single Postgres transaction so all KPIs
+// are read from a consistent snapshot.
 export async function getDashboardSummary(
   scopedUserId: string | undefined,
 ): Promise<DashboardSummary> {
@@ -125,6 +129,7 @@ export async function getDashboardSummary(
       }
     }
 
+    // WHERE fragments reused across the parallel queries below.
     const pantryWhere: Prisma.PantryItemWhereInput =
       scopedUserId !== undefined ? { userId: scopedUserId } : {};
 
@@ -138,6 +143,7 @@ export async function getDashboardSummary(
           }
         : {};
 
+    // Run all KPI queries in parallel inside the transaction.
     const [
       totalPantryItems,
       totalCategories,
@@ -156,6 +162,7 @@ export async function getDashboardSummary(
 
       tx.recallAlert.count({ where: alertWhere }),
 
+      // Active = NEW or REVIEWED (not yet dismissed/resolved).
       tx.recallAlert.count({
         where: {
           ...alertWhere,
@@ -205,6 +212,7 @@ export async function getDashboardSummary(
       }),
     ]);
 
+    // Resolve category names referenced by the groupBy result.
     const categoryIds = groupedByCat.map((g) => g.categoryId);
     const cats =
       categoryIds.length > 0
@@ -216,6 +224,7 @@ export async function getDashboardSummary(
 
     const itemsByCategory = mapGroupedCategories(groupedByCat, cats);
 
+    // Ensure every RiskLevel appears in the response (zero-fill missing tiers).
     const tierCounts = Object.fromEntries(
       groupedByRisk.map(
         (row) => [row.riskLevel, row._count._all] as [RiskLevel, number],
@@ -229,6 +238,7 @@ export async function getDashboardSummary(
       count: tierCounts[riskLevel] ?? 0,
     }));
 
+    // Project recent checks to the lean snippet shape the UI expects.
     const recentRecallChecks: DashboardRecentRecallCheck[] = recentChecksRaw.map(
       (check) => ({
         id: check.id,

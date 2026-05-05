@@ -5,6 +5,7 @@ import { env } from "../config/env";
 const { combine, timestamp, printf, colorize, errors, splat, json } =
   winston.format;
 
+// Winston logger: human-readable in dev, JSON in production for log aggregation.
 export const logger = winston.createLogger({
   level: env.NODE_ENV === "production" ? "info" : "debug",
   defaultMeta: { service: "api-service" },
@@ -21,12 +22,7 @@ export const logger = winston.createLogger({
                 return `${ts ?? ""} ${level}: ${stack ?? message}`;
               }),
             )
-          : combine(
-              errors({ stack: true }),
-              splat(),
-              timestamp(),
-              json(),
-            ),
+          : combine(errors({ stack: true }), splat(), timestamp(), json()),
     }),
   ],
 });

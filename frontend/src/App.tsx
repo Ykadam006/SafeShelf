@@ -11,6 +11,7 @@ import { Users } from "./pages/Users";
 
 import { ScopeUserProvider } from "./context/ScopeUserContext";
 
+// Top-level routing. ScopeUserProvider exposes the active user to every page.
 export default function App() {
   return (
     <ScopeUserProvider>

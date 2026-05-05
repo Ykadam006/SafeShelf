@@ -8,6 +8,7 @@ import {
   userIdParamsSchema,
 } from "./users.validation";
 
+// User CRUD endpoints. Every input is Zod-validated before reaching the controller.
 export const usersRouter = Router();
 
 usersRouter.post(

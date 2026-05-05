@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { useScopeUser } from "../context/ScopeUserContext";
 
+// Top navbar with brand, mobile menu toggle, and the scope-user picker.
 export function Navbar({
   menuOpen,
   onMenuToggle,
@@ -22,6 +23,7 @@ export function Navbar({
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-white/90">
       <div className="flex min-h-[4.5rem] md:min-h-[4.75rem] items-center gap-3 px-4 py-3 md:gap-4 md:px-6 md:py-3">
+        {/* Hamburger only visible below md. */}
         <button
           type="button"
           className="-ml-1 inline-flex shrink-0 rounded-lg p-2 text-slate-600 hover:bg-slate-100 md:hidden"
@@ -31,6 +33,7 @@ export function Navbar({
           {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
 
+        {/* Brand → home. */}
         <Link
           to="/"
           className="flex min-w-0 shrink items-center gap-3 rounded-xl pr-2 transition-colors hover:bg-slate-50/80 md:gap-4"
@@ -53,6 +56,7 @@ export function Navbar({
 
         <div className="ml-auto hidden h-9 w-px shrink-0 bg-slate-200 md:block lg:h-11" />
 
+        {/* Scope-user picker: stands in for "current user" until auth lands. */}
         <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 lg:flex-nowrap">
           <label htmlFor="scope-user" className="hidden text-[11px] font-semibold text-slate-500 lg:inline">
             Demo&nbsp;user
@@ -93,6 +97,7 @@ export function Navbar({
             </button>
           </div>
 
+          {/* Inline error if the user list failed to load. */}
           {usersError ? (
             <p
               title={usersError}

@@ -7,7 +7,7 @@ import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
 import YAML from "yamljs";
 
-import "./config/prisma"; // initialize PrismaClient singleton early
+import "./config/prisma";
 import { errorHandler } from "./middleware/errorHandler";
 import { notFound } from "./middleware/notFound";
 import { requestLogger } from "./middleware/requestLogger";
@@ -20,12 +20,7 @@ import { recallsRouter } from "./modules/recalls/recalls.routes";
 import { usersRouter } from "./modules/users/users.routes";
 import { healthRoutes } from "./routes/health.routes";
 
-/**
- * Resolve the OpenAPI spec across runtimes:
- *  - local dev / tests run TS directly → `src/docs/openapi.yaml`
- *  - production build (`npm run build`) → `dist/docs/openapi.yaml`
- *  - serverless bundles (Vercel) → file shipped via `includeFiles`, found relative to cwd
- */
+// Locate the OpenAPI YAML so Swagger UI works in dev, prod build, and Vercel.
 function loadOpenapiDocument(): unknown | null {
   const candidates = [
     path.join(__dirname, "docs/openapi.yaml"),
@@ -45,15 +40,20 @@ function loadOpenapiDocument(): unknown | null {
 
 const openapiDocument = loadOpenapiDocument();
 
+// Build and configure the Express application (called by both server.ts and Vercel).
 export function createApp() {
   const app = express();
 
+  // Security + parsing middleware.
   app.use(helmet());
   app.use(cors());
   app.use(express.json());
   app.use(requestLogger);
 
+  // Public health probe.
   app.use("/api/health", healthRoutes);
+
+  // Domain routes.
   app.use("/api/users", usersRouter);
   app.use("/api/categories", categoriesRouter);
   app.use("/api/dashboard", dashboardRouter);
@@ -62,13 +62,12 @@ export function createApp() {
   app.use("/api", recallChecksRouter);
   app.use("/api/recalls", recallsRouter);
 
+  // Interactive API docs (Swagger UI). CSP headers are dropped here only,
+  // because Helmet's default policy blocks the inline scripts Swagger needs.
   if (openapiDocument) {
     app.use(
       "/api/docs",
       (_req: Request, res: Response, next: NextFunction) => {
-        // Helmet's default CSP (script-src 'self') blocks the Function()
-        // calls inside swagger-ui-bundle.js, leaving the page blank. Strip
-        // CSP/COEP for the docs route only so Swagger can render.
         res.removeHeader("Content-Security-Policy");
         res.removeHeader("Cross-Origin-Embedder-Policy");
         res.removeHeader("Cross-Origin-Opener-Policy");
@@ -83,6 +82,7 @@ export function createApp() {
     );
   }
 
+  // 404 handler followed by the centralised error formatter.
   app.use(notFound);
   app.use(errorHandler);
 

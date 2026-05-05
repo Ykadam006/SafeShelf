@@ -11,8 +11,11 @@ import {
 import { apiGet, normalizeApiError } from "../api/http";
 import type { UserDto } from "../types";
 
+// Persist the currently selected scope user across page reloads.
 const STORAGE_KEY = "safeshelf-scope-user-id";
 
+// Pick the best default scope user when nothing is stored yet:
+// 1) the previously chosen user, 2) demo@safeshelf.com, 3) any USER, 4) the first user.
 function pickFallbackUserId(users: UserDto[], preferredId: string | null): string {
   const demo = users.find((u) => u.email.toLowerCase() === "demo@safeshelf.com");
   const userRole = users.find((u) => u.role === "USER");
@@ -35,6 +38,7 @@ type ScopeCtx = {
 
 const ScopeUserContext = createContext<ScopeCtx | null>(null);
 
+// Loads users once on mount and exposes the active scope user to children.
 export function ScopeUserProvider({ children }: PropsWithChildren) {
   const [users, setUsers] = useState<UserDto[]>([]);
   const [scopeUserId, setScopeUserId] = useState<string | undefined>(
@@ -44,6 +48,7 @@ export function ScopeUserProvider({ children }: PropsWithChildren) {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
 
+  // Pull the user list from the API.
   const refreshUsers = useCallback(async (): Promise<void> => {
     setLoadingUsers(true);
     setUsersError(null);
@@ -59,10 +64,12 @@ export function ScopeUserProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  // Initial load.
   useEffect(() => {
     void refreshUsers();
   }, [refreshUsers]);
 
+  // Resolve the active scope user whenever the user list changes.
   useEffect(() => {
     if (users.length === 0) {
       setBootstrapped(false);
@@ -77,6 +84,7 @@ export function ScopeUserProvider({ children }: PropsWithChildren) {
       stored = null;
     }
 
+    // First successful load: pick the default and remember it.
     if (!bootstrapped) {
       const nextId = pickFallbackUserId(users, stored);
       setScopeUserId(nextId);
@@ -89,6 +97,7 @@ export function ScopeUserProvider({ children }: PropsWithChildren) {
       return;
     }
 
+    // Re-validate on subsequent reloads (e.g. user was deleted).
     setScopeUserId((current) => {
       if (current !== undefined && users.some((u) => u.id === current)) {
         return current;
@@ -103,6 +112,7 @@ export function ScopeUserProvider({ children }: PropsWithChildren) {
     });
   }, [users, bootstrapped]);
 
+  // Update + persist the chosen scope user.
   const setScopePersisted = useCallback((id: string) => {
     setScopeUserId(id);
     try {
@@ -136,6 +146,7 @@ export function ScopeUserProvider({ children }: PropsWithChildren) {
   );
 }
 
+// Hook used by pages to read/update the active scope user.
 export function useScopeUser(): ScopeCtx {
   const ctx = useContext(ScopeUserContext);
   if (ctx === null) {

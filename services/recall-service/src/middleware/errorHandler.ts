@@ -6,12 +6,14 @@ import { ApiError } from "../utils/ApiError";
 import { sendFailure, zodIssuesToErrors } from "../utils/httpResponse";
 import { logger } from "../utils/logger";
 
+// Single place every error in recall-service turns into a JSON response.
 export function errorHandler(
   err: unknown,
   req: Request,
   res: Response,
   _next: NextFunction,
 ): void {
+  // Validation failures → 400 with a list of issues.
   if (err instanceof ZodError) {
     logger.debug(
       `Recall-service validation (${err.issues.length} issue(s)): ${req.method} ${req.originalUrl}`,
@@ -20,6 +22,7 @@ export function errorHandler(
     return;
   }
 
+  // Internal ApiErrors are logged in detail but masked in production.
   if (err instanceof ApiError && !err.expose) {
     logger.error(
       `Non-exposed ApiError ${req.method} ${req.originalUrl}: ${err.stack ?? err.message}`,
@@ -33,6 +36,7 @@ export function errorHandler(
     return;
   }
 
+  // Public ApiErrors are sent as-is so callers see the intended status + message.
   if (err instanceof ApiError && err.expose) {
     logger.debug(
       `Recall-service ApiError (${err.statusCode}) ${req.method} ${req.originalUrl}`,
@@ -41,6 +45,7 @@ export function errorHandler(
     return;
   }
 
+  // Anything else is unexpected: log it and respond with a generic 500.
   const message =
     err instanceof Error ? err.message : "Internal server error.";
 

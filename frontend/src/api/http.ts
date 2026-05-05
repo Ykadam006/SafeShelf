@@ -3,9 +3,9 @@ import axios, { AxiosError } from "axios";
 import type { ApiFailureEnvelope, ApiSuccessEnvelope } from "../types";
 import { api } from "./client";
 
+// Error type the rest of the app catches so UI never sees raw Axios errors.
 export class ApiRequestError extends Error {
   declare readonly status?: number;
-
   declare readonly errors?: unknown[];
 
   constructor(message: string, status?: number, errors?: unknown[]) {
@@ -16,6 +16,7 @@ export class ApiRequestError extends Error {
   }
 }
 
+// Translate any thrown value into an ApiRequestError with a usable message.
 export function normalizeApiError(error: unknown): ApiRequestError {
   if (error instanceof ApiRequestError) return error;
 
@@ -42,6 +43,7 @@ export function normalizeApiError(error: unknown): ApiRequestError {
   return new ApiRequestError("Something went wrong.");
 }
 
+// Type guard for the API's success envelope.
 function isSuccessEnvelope<T>(raw: unknown): raw is ApiSuccessEnvelope<T> {
   return (
     typeof raw === "object" &&
@@ -51,6 +53,7 @@ function isSuccessEnvelope<T>(raw: unknown): raw is ApiSuccessEnvelope<T> {
   );
 }
 
+// Pull the `.data` field out of a response or throw a normalised error.
 async function unwrap<T>(
   promise: Promise<{ data: unknown }>,
 ): Promise<T> {
@@ -69,6 +72,7 @@ async function unwrap<T>(
   }
 }
 
+// Thin per-verb helpers so callers don't repeat the unwrap dance.
 export async function apiGet<T>(
   url: string,
   params?: Record<string, unknown>,

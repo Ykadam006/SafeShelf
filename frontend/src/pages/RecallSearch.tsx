@@ -9,10 +9,12 @@ import { Loading } from "../components/Loading";
 import { PageHeader } from "../components/PageHeader";
 import type { RecallSearchPayload } from "../types";
 
+// Narrow union for the inline status banner.
 type Notice =
   | { kind: "info"; message: string }
   | { kind: "error"; message: string };
 
+// Free-text recall search hitting GET /api/recalls/search → recall-service → openFDA.
 export function RecallSearch() {
   const [query, setQuery] = useState("");
   const [meta, setMeta] = useState<RecallSearchPayload | null>(null);
@@ -20,6 +22,7 @@ export function RecallSearch() {
   const [attempted, setAttempted] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
 
+  // Submit handler: sends the trimmed query and surfaces info / error notices.
   async function runSearch(event: FormEvent): Promise<void> {
     event.preventDefault();
     const trimmed = query.trim();
@@ -44,6 +47,7 @@ export function RecallSearch() {
 
       const rows = envelope.recalls ?? [];
 
+      // Edge case: server reports hits but rows came back empty.
       if (rows.length === 0 && envelope.count > 0) {
         setNotice({
           kind: "info",
@@ -73,6 +77,7 @@ export function RecallSearch() {
         subtitle="Search openFDA enforcement narratives through the SafeShelf recall-service proxy — ideal for live classroom demos."
       />
 
+      {/* Search box. */}
       <form
         onSubmit={(event) => void runSearch(event)}
         className="ss-card p-6 md:p-7"
@@ -102,6 +107,7 @@ export function RecallSearch() {
 
       {loading ? <Loading label="Calling recall-service…" /> : null}
 
+      {/* Inline status banner. */}
       {!loading && notice ? (
         <div
           role="status"
@@ -115,6 +121,7 @@ export function RecallSearch() {
         </div>
       ) : null}
 
+      {/* Optional notes from the recall-service envelope. */}
       {meta?.upstreamMessage || meta?.info ? (
         <div className="space-y-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
           <p className="font-semibold uppercase tracking-wide text-slate-500">
@@ -125,6 +132,7 @@ export function RecallSearch() {
         </div>
       ) : null}
 
+      {/* Empty state for searches that returned zero hits. */}
       {!loading && attempted && rows.length === 0 && meta && meta.count === 0 ? (
         <EmptyState
           title="No enforcement hits"
@@ -132,6 +140,7 @@ export function RecallSearch() {
         />
       ) : null}
 
+      {/* Result grid. */}
       {!loading && attempted && rows.length > 0 ? (
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">

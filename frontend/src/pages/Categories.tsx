@@ -22,20 +22,24 @@ import { Loading } from "../components/Loading";
 import { PageHeader } from "../components/PageHeader";
 import type { CategoryDto } from "../types";
 
+// Categories CRUD: inline create form on top, editable table below.
 export function Categories() {
   const [rows, setRows] = useState<CategoryDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // "Create" form state.
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
 
+  // Inline edit state for an existing row.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Pull the latest list from the API.
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -54,6 +58,7 @@ export function Categories() {
     void reload();
   }, [reload]);
 
+  // Begin editing a row by copying its values into the edit state.
   function startEdit(cat: CategoryDto) {
     setEditingId(cat.id);
     setEditName(cat.name);
@@ -64,6 +69,7 @@ export function Categories() {
     setEditingId(null);
   }
 
+  // POST a new category.
   async function createCategory(event: FormEvent) {
     event.preventDefault();
     if (!newName.trim()) return;
@@ -86,6 +92,7 @@ export function Categories() {
     }
   }
 
+  // PATCH the row currently being edited.
   async function saveCategory(id: string) {
     const payload: Record<string, unknown> = {};
     payload.name = editName.trim();
@@ -109,6 +116,7 @@ export function Categories() {
     }
   }
 
+  // DELETE — server refuses if pantry items still reference it.
   async function destroy(id: string) {
     if (!window.confirm("Delete this category if no pantry items rely on it?")) {
       return;
@@ -151,6 +159,7 @@ export function Categories() {
         </div>
       ) : null}
 
+      {/* Create form. */}
       <form
         onSubmit={createCategory}
         className="ss-card grid gap-4 p-5 md:grid-cols-[1fr_auto] md:items-end"
@@ -193,6 +202,7 @@ export function Categories() {
         </button>
       </form>
 
+      {/* List + inline edit. */}
       {loading && rows.length === 0 ? (
         <Loading label="Hydrating taxonomy…" />
       ) : rows.length === 0 ? (
@@ -212,6 +222,7 @@ export function Categories() {
               <tbody className="divide-y divide-slate-100">
                 {rows.map((cat) =>
                   editingId === cat.id ? (
+                    // Edit row: same columns but inputs in place of text.
                     <tr key={cat.id} className="bg-emerald-50/40 align-top">
                       <td className="px-5 py-3">
                         <input
@@ -257,6 +268,7 @@ export function Categories() {
                       </td>
                     </tr>
                   ) : (
+                    // Read-only row.
                     <tr key={cat.id} className="align-top">
                       <td className="px-5 py-4 font-semibold text-slate-900">
                         {cat.name}

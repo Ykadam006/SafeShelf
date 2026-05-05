@@ -18,14 +18,17 @@ import { useScopeUser } from "../context/ScopeUserContext";
 import type { DashboardSummary } from "../types";
 import { formatDateShort } from "../utils/display";
 
+// Admin-style overview: KPI tiles + charts pulling /api/dashboard/summary.
 export function Dashboard() {
   const { scopeUserId, loadingUsers, users } = useScopeUser();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Wait for the user list before firing requests.
   const scopeReady = Boolean(!loadingUsers && scopeUserId);
 
+  // Fetch the dashboard summary scoped to the current user.
   const load = useCallback(async () => {
     if (!scopeUserId) return;
     setLoading(true);
@@ -43,11 +46,13 @@ export function Dashboard() {
     }
   }, [scopeUserId]);
 
+  // Reload whenever the active user changes.
   useEffect(() => {
     if (!scopeReady) return;
     void load();
   }, [scopeReady, load]);
 
+  // Show "as-of" timestamp on the session header.
   const refreshedLabel = useMemo(() => {
     return new Intl.DateTimeFormat(undefined, {
       weekday: "short",
@@ -56,6 +61,7 @@ export function Dashboard() {
     }).format(new Date());
   }, [summary]);
 
+  // Largest category count drives bar widths in the items-by-category chart.
   const maxCategoryItems = useMemo(() => {
     if (!summary) return 0;
     return Math.max(1, ...summary.itemsByCategory.map((c) => c.itemCount));
@@ -65,6 +71,7 @@ export function Dashboard() {
     return <Loading label="Loading household context…" />;
   }
 
+  // No users in the system yet — guide the user toward seeding.
   if (!loadingUsers && users.length === 0) {
     return (
       <div className="mx-auto max-w-3xl py-12">
@@ -94,6 +101,7 @@ export function Dashboard() {
         }
       />
 
+      {/* Session-clock band gives an "as-of" feel to the metrics. */}
       <div className="ss-card flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm text-slate-600 md:gap-6">
         <span className="flex items-center gap-2 font-medium">
           <CalendarClock className="size-4 text-emerald-600" />
@@ -104,6 +112,7 @@ export function Dashboard() {
         </span>
       </div>
 
+      {/* Inline error banner if the summary call failed. */}
       {error ? (
         <div role="alert" className="ss-card border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-950">
           {error}
@@ -122,6 +131,7 @@ export function Dashboard() {
         />
       ) : (
         <>
+          {/* KPI tiles. */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <StatCard
               label="Total pantry items"
@@ -156,6 +166,7 @@ export function Dashboard() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-12">
+            {/* Items-by-category bar chart. */}
             <section className="ss-card xl:col-span-5">
               <div className="ss-card-header bg-slate-50/70">
                 <h2 className="text-[15px] font-bold text-slate-900">
@@ -196,6 +207,7 @@ export function Dashboard() {
               </div>
             </section>
 
+            {/* Latest alerts feed. */}
             <section className="ss-card xl:col-span-7">
               <div className="ss-card-header bg-slate-50/70">
                 <h2 className="text-[15px] font-bold text-slate-900">
@@ -241,6 +253,7 @@ export function Dashboard() {
             </section>
           </div>
 
+          {/* Audit log of the most recent recall checks. */}
           <section className="ss-table-shell">
             <div className="ss-card-header bg-slate-50/70">
               <div>

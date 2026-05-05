@@ -4,6 +4,7 @@ import { ApiError } from "../../utils/ApiError";
 import { sendSuccess } from "../../utils/httpResponse";
 import * as recallsService from "./recalls.service";
 
+// GET /api/recalls/search — proxies the query through recall-service to openFDA.
 export async function searchRecalls(
   req: Request,
   res: Response,
@@ -29,6 +30,7 @@ export async function searchRecalls(
   }
 }
 
+// GET /api/recalls/:id — looks up a stored recall by UUID or FDA event id.
 export async function getRecallDetail(
   req: Request,
   res: Response,

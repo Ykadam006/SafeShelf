@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const uuid = () => z.string().uuid();
 
-/** Optional string-ish fields: trim blanks to null; omit when undefined */
+// Optional string field that trims whitespace and treats blank as null.
 function trimmedNullable(max: number) {
   return z
     .preprocess((raw) => {
@@ -14,7 +14,7 @@ function trimmedNullable(max: number) {
     .optional();
 }
 
-/** JSON date strings, timestamps, null to clear optional date field */
+// Optional date that accepts ISO strings/Date and allows null to clear the field.
 function optionalDateNullable() {
   return z
     .preprocess((raw) => {
@@ -25,7 +25,7 @@ function optionalDateNullable() {
     .optional();
 }
 
-/** Create pantry item */
+// Body for creating a pantry item.
 export const createPantryItemSchema = z.object({
   userId: uuid(),
   categoryId: uuid(),
@@ -39,6 +39,7 @@ export const createPantryItemSchema = z.object({
   notes: trimmedNullable(2000),
 });
 
+// Whitelist of fields a PATCH may change.
 const PANTRY_PATCH_KEYS = [
   "userId",
   "categoryId",
@@ -52,6 +53,7 @@ const PANTRY_PATCH_KEYS = [
   "notes",
 ] as const;
 
+// PATCH must change at least one whitelisted field.
 export const updatePantryItemSchema = z
   .object({
     userId: uuid().optional(),
@@ -76,13 +78,14 @@ export const pantryItemIdParamsSchema = z.object({
   id: z.string().uuid("Invalid pantry item id"),
 });
 
-/** Query flag from `expiringSoon` (e.g. `true`, `false`, omit). */
+// Coerce the `expiringSoon` query string into a real boolean.
 function coerceExpiringSoon(raw?: string): boolean {
   if (!raw || String(raw).trim() === "") return false;
   const lowered = String(raw).trim().toLowerCase();
   return lowered === "true" || lowered === "1";
 }
 
+// Query string schema for GET /api/pantry-items.
 export const listPantryItemsQuerySchema = z
   .object({
     userId: uuid().optional(),

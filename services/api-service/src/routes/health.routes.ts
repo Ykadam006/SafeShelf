@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { sendSuccess } from "../utils/httpResponse";
 
+// Liveness probe used by load balancers and uptime checks.
 export const healthRoutes = Router();
 
 healthRoutes.get("/", (_req, res) => {

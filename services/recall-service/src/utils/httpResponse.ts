@@ -1,6 +1,7 @@
 import type { Response } from "express";
 import type { ZodError } from "zod";
 
+// Convert Zod issues into a stable list the caller can render field-by-field.
 export function zodIssuesToErrors(err: ZodError): unknown[] {
   return err.issues.map((issue) => ({
     path: issue.path.length ? issue.path.join(".") : "_root",
@@ -9,6 +10,7 @@ export function zodIssuesToErrors(err: ZodError): unknown[] {
   }));
 }
 
+// Send a `{ success: true, message, data }` JSON envelope.
 export function sendSuccess(
   res: Response,
   status: number,
@@ -22,6 +24,7 @@ export function sendSuccess(
   });
 }
 
+// Send a `{ success: false, message, errors }` JSON envelope.
 export function sendFailure(
   res: Response,
   status: number,

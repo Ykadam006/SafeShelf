@@ -8,6 +8,7 @@ import {
   updateCategorySchema,
 } from "./categories.validation";
 
+// Category CRUD. List response includes per-category pantry-item counts.
 export const categoriesRouter = Router();
 
 categoriesRouter.post(

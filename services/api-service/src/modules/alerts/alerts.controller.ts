@@ -7,7 +7,7 @@ import type { RecallAlertWithRelations } from "./alerts.service";
 import * as alertsService from "./alerts.service";
 import type { AlertsListQuery, PatchRecallAlertBody } from "./alerts.validation";
 
-/** API shape including nested pantry SKU, persisted recall row, and user. */
+// Flatten the alert + its nested user, pantry item, and recall into a single response.
 export function formatRecallAlert(row: RecallAlertWithRelations) {
   const { pantryItem, recall, user: alertUser, ...rest } = row;
   return {
@@ -29,6 +29,7 @@ export function formatRecallAlert(row: RecallAlertWithRelations) {
   };
 }
 
+// GET /api/alerts (filterable by user, status, riskLevel)
 export async function listAlerts(
   req: Request,
   res: Response,
@@ -48,6 +49,7 @@ export async function listAlerts(
   }
 }
 
+// GET /api/alerts/:id
 export async function getAlertById(
   req: Request,
   res: Response,
@@ -66,6 +68,7 @@ export async function getAlertById(
   }
 }
 
+// PATCH /api/alerts/:id — only the lifecycle status is mutable here.
 export async function patchAlertById(
   req: Request,
   res: Response,
@@ -85,6 +88,7 @@ export async function patchAlertById(
   }
 }
 
+// DELETE /api/alerts/:id
 export async function deleteAlertById(
   req: Request,
   res: Response,

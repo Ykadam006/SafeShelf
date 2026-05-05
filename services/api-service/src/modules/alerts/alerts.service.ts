@@ -8,7 +8,7 @@ import type {
   PatchRecallAlertBody,
 } from "./alerts.validation";
 
-/** Used by Recall Alerts API responses and dashboard `latestAlerts`. */
+// Reusable include block: alert + user + pantry item (with its relations) + recall snapshot.
 export const recallAlertInclude = {
   user: {
     select: {
@@ -36,6 +36,7 @@ function isRecordNotFound(err: unknown): boolean {
   );
 }
 
+// Compose query filters into a Prisma WHERE clause.
 function buildAlertWhere(
   filters: AlertsListQuery,
 ): Prisma.RecallAlertWhereInput {
@@ -56,6 +57,7 @@ function buildAlertWhere(
   return andClauses.length ? { AND: andClauses } : {};
 }
 
+// All alerts matching the filter, newest first.
 export async function listRecallAlerts(
   filters: AlertsListQuery,
 ): Promise<RecallAlertWithRelations[]> {
@@ -81,6 +83,7 @@ export async function getRecallAlertById(
   return row;
 }
 
+// Update only the alert lifecycle status (NEW → REVIEWED → DISMISSED/RESOLVED).
 export async function patchRecallAlert(
   id: string,
   payload: PatchRecallAlertBody,

@@ -5,6 +5,7 @@ import { ApiError } from "../../utils/ApiError";
 
 import type { PantryItemListFilters } from "./pantryItems.validation";
 
+// Reuse this include block everywhere so pantry items always carry user + category.
 export const pantryRelationsInclude = {
   user: {
     select: {
@@ -27,6 +28,7 @@ export type PantryItemWithRelations = Prisma.PantryItemGetPayload<{
   include: typeof pantryRelationsInclude;
 }>;
 
+// Prisma error code helpers.
 function isRecordNotFound(err: unknown): boolean {
   return (
     err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025"
@@ -39,6 +41,7 @@ function isForeignKeyViolation(err: unknown): boolean {
   );
 }
 
+// Validate a foreign-key target exists before insert to surface friendly 404s.
 async function ensureUserExists(userId: string): Promise<void> {
   const row = await prisma.user.findUnique({
     where: { id: userId },
@@ -61,6 +64,7 @@ async function ensureCategoryExists(categoryId: string): Promise<void> {
   }
 }
 
+// UTC helpers used by the "expiring soon" filter (next 14 days).
 function startOfUtcDay(d: Date): Date {
   return new Date(
     Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
@@ -71,6 +75,7 @@ function addUtcMilliseconds(d: Date, ms: number): Date {
   return new Date(d.getTime() + ms);
 }
 
+// Translate validated query filters into a Prisma WHERE clause (AND-composed).
 function buildWhereFromFilters(
   filters: PantryItemListFilters,
 ): Prisma.PantryItemWhereInput {
@@ -84,20 +89,20 @@ function buildWhereFromFilters(
     andClauses.push({ categoryId: filters.categoryId });
   }
 
+  // Free-text search across name / brand / barcode / notes (case-insensitive).
   if (filters.search) {
     const term = filters.search;
     andClauses.push({
       OR: [
         { name: { contains: term, mode: Prisma.QueryMode.insensitive } },
         { brand: { contains: term, mode: Prisma.QueryMode.insensitive } },
-        {
-          barcode: { contains: term, mode: Prisma.QueryMode.insensitive },
-        },
+        { barcode: { contains: term, mode: Prisma.QueryMode.insensitive } },
         { notes: { contains: term, mode: Prisma.QueryMode.insensitive } },
       ],
     });
   }
 
+  // Items expiring within the next 14 days, inclusive of today.
   if (filters.expiringSoon) {
     const todayStart = startOfUtcDay(new Date());
     const horizonEnd = addUtcMilliseconds(
@@ -116,6 +121,7 @@ function buildWhereFromFilters(
   return andClauses.length ? { AND: andClauses } : {};
 }
 
+// Insert a new pantry item after confirming user + category exist.
 export async function createPantryItem(payload: {
   userId: string;
   categoryId: string;
@@ -154,6 +160,7 @@ export async function createPantryItem(payload: {
   });
 }
 
+// Filter + paginate pantry items, ordering by most recently updated.
 export async function listPantryItems(
   filters: PantryItemListFilters,
 ): Promise<PantryItemWithRelations[]> {
@@ -179,6 +186,7 @@ export async function getPantryItemById(
   return row;
 }
 
+// Partial update; re-validates user/category if those FKs change.
 export async function updatePantryItem(
   id: string,
   payload: {
@@ -240,6 +248,7 @@ export async function updatePantryItem(
   }
 }
 
+// Cascades to recall checks and recall alerts via Prisma onDelete: Cascade.
 export async function deletePantryItem(id: string): Promise<void> {
   try {
     await prisma.pantryItem.delete({ where: { id } });

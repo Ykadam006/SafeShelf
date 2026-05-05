@@ -1,3 +1,5 @@
+// Typed error class so handlers can throw HTTP-shaped failures and the
+// central error formatter can serialise them consistently.
 export class ApiError extends Error {
   statusCode: number;
   expose: boolean;
@@ -36,6 +38,7 @@ export class ApiError extends Error {
     return new ApiError(429, message, true, errors);
   }
 
+  // Hidden from the client in production; details only visible in logs.
   static internal(message = "Internal server error"): ApiError {
     return new ApiError(500, message, false);
   }

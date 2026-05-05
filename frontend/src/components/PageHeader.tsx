@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+// Title + subtitle + optional action buttons rendered above each page.
 export function PageHeader({
   title,
   subtitle,

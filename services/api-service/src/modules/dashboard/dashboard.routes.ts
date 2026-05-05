@@ -4,6 +4,7 @@ import { z } from "zod";
 import { validateRequest } from "../../middleware/validateRequest";
 import * as ctrl from "./dashboard.controller";
 
+// Optional `?userId=` filter scopes the dashboard to a single user.
 const dashboardSummaryQuerySchema = z.object({
   userId: z.preprocess((val): string | undefined => {
     const raw = Array.isArray(val) ? val[0] : val;

@@ -8,6 +8,7 @@ import {
   runPantryRecallCheck,
 } from "./recallChecks.service";
 
+// POST /api/pantry-items/:id/check-recall — runs one item against openFDA.
 export async function checkPantryItemRecallById(
   req: Request,
   res: Response,
@@ -27,6 +28,7 @@ export async function checkPantryItemRecallById(
   }
 }
 
+// GET /api/pantry-items/:id/recall-checks — audit log of past checks for an item.
 export async function recallCheckHistoryByPantryItemId(
   req: Request,
   res: Response,
@@ -40,6 +42,7 @@ export async function recallCheckHistoryByPantryItemId(
   }
 }
 
+// POST /api/recalls/check-all — sweeps every pantry item for a user.
 export async function recallCheckAllForUserBody(
   req: Request,
   res: Response,

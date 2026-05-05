@@ -9,6 +9,8 @@ import { PageHeader } from "../components/PageHeader";
 import { useScopeUser } from "../context/ScopeUserContext";
 import type { CategoryDto, PantryItemDto, UserDto } from "../types";
 
+// Convert a <input type="date"> value (YYYY-MM-DD) to an ISO string at noon UTC.
+// Picking noon avoids day-shift issues from local timezones.
 function isoFromDateInput(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
@@ -17,6 +19,7 @@ function isoFromDateInput(value: string): string | undefined {
   return parsed.toISOString();
 }
 
+// Form for POST /api/pantry-items. All inputs map 1:1 to the Zod create schema.
 export function AddPantryItem() {
   const navigate = useNavigate();
   const { scopeUserId, loadingUsers } = useScopeUser();
@@ -25,6 +28,7 @@ export function AddPantryItem() {
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [loadingRefs, setLoadingRefs] = useState(true);
 
+  // Form fields.
   const [userId, setUserId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [name, setName] = useState("");
@@ -39,10 +43,12 @@ export function AddPantryItem() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Pre-fill the user picker with the active scope user.
   useEffect(() => {
     if (!loadingUsers && scopeUserId) setUserId(scopeUserId);
   }, [loadingUsers, scopeUserId]);
 
+  // Load users + categories in parallel for the dropdowns.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -67,6 +73,7 @@ export function AddPantryItem() {
     };
   }, []);
 
+  // Default the category dropdown to the first option once loaded.
   useEffect(() => {
     if (categories.length === 0) return;
     setCategoryId((current) =>
@@ -76,6 +83,7 @@ export function AddPantryItem() {
     );
   }, [categories]);
 
+  // Build the request body, validate locally, then POST.
   async function submit(e: FormEvent): Promise<void> {
     e.preventDefault();
     setError(null);
@@ -97,6 +105,7 @@ export function AddPantryItem() {
       quantity: qtyParsed,
     };
 
+    // Optional fields are only sent when actually filled in.
     const trimmedBrand = brand.trim();
     if (trimmedBrand !== "") payload.brand = trimmedBrand;
 
@@ -164,6 +173,7 @@ export function AddPantryItem() {
 
       <form className="ss-card space-y-4 p-5 md:p-6" onSubmit={submit}>
         <fieldset className="grid gap-4 sm:grid-cols-2" disabled={submitting}>
+          {/* Owner picker (required FK). */}
           <div className="sm:col-span-2">
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
               Owner (user id)
@@ -185,6 +195,7 @@ export function AddPantryItem() {
             </select>
           </div>
 
+          {/* Category picker (required FK). */}
           <div className="sm:col-span-2">
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
               Category

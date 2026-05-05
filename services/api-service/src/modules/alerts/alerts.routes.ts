@@ -8,6 +8,7 @@ import {
   recallAlertIdParamsSchema,
 } from "./alerts.validation";
 
+// Recall-alert read + lifecycle update endpoints (alerts are created by recall checks, not here).
 export const alertsRouter = Router();
 
 alertsRouter.get(

@@ -15,6 +15,7 @@ import { useScopeUser } from "../context/ScopeUserContext";
 import type { AlertStatus, RecallAlertDto } from "../types";
 import { formatDateShort } from "../utils/display";
 
+// Statuses available in the per-row dropdown.
 const STATUSES: AlertStatus[] = [
   "NEW",
   "REVIEWED",
@@ -22,6 +23,7 @@ const STATUSES: AlertStatus[] = [
   "RESOLVED",
 ];
 
+// Small chip rendering the FDA classification text inside the table.
 function ClassificationChip({
   classification,
 }: {
@@ -37,14 +39,17 @@ function ClassificationChip({
   );
 }
 
+// Recall alerts inbox. Lets the user move alerts through their lifecycle.
 export function RecallAlerts() {
   const { scopeUserId, loadingUsers, users } = useScopeUser();
   const [alerts, setAlerts] = useState<RecallAlertDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Per-row "draft" status so users can pick a value before pressing Save.
   const [draft, setDraft] = useState<Record<string, AlertStatus>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Reset the per-row draft map whenever fresh data arrives.
   const hydrateDraft = useCallback((rows: RecallAlertDto[]) => {
     const next: Record<string, AlertStatus> = {};
     rows.forEach((row) => {
@@ -53,6 +58,7 @@ export function RecallAlerts() {
     setDraft(next);
   }, []);
 
+  // Fetch alerts for the current user.
   const load = useCallback(async () => {
     if (!scopeUserId) return;
     setLoading(true);
@@ -75,6 +81,7 @@ export function RecallAlerts() {
     if (!loadingUsers && scopeUserId) void load();
   }, [load, loadingUsers, scopeUserId]);
 
+  // PATCH the alert status for a row.
   async function persistStatus(id: string) {
     const nextStatus = draft[id];
     if (!nextStatus) return;
@@ -92,6 +99,7 @@ export function RecallAlerts() {
     }
   }
 
+  // DELETE an alert outright.
   async function destroy(id: string) {
     if (!window.confirm("Remove this recall alert record?")) return;
     setBusyId(id);
@@ -210,6 +218,7 @@ export function RecallAlerts() {
                       <td>
                         <div className="flex flex-col gap-2">
                           <AlertStatusBadge status={draftStatus} />
+                          {/* Indicates the dropdown was changed but not saved yet. */}
                           {draftStatus !== alert.alertStatus ? (
                             <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-600">
                               Unsaved draft

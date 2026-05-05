@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
+// Top-level navigation entries shown in the sidebar.
 const NAV: { to: string; label: string; icon: typeof LayoutDashboard }[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/pantry", label: "Pantry Items", icon: Package },
@@ -19,6 +20,7 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard }[] = [
   { to: "/users", label: "Users", icon: Users },
 ];
 
+// Fixed sidebar that slides in on mobile and stays anchored on desktop.
 export function Sidebar({
   open,
   onNavigate,
@@ -73,6 +75,7 @@ export function Sidebar({
         </nav>
       </aside>
 
+      {/* Backdrop on mobile: tapping it dismisses the open sidebar. */}
       {open ? (
         <button
           type="button"
